@@ -41,9 +41,9 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     await prisma.plans.delete({ where: { id: req.params.id } });
-    res.json({ message: 'Plan deleted successfully' });
+    res.json({ success: true, message: 'Plan deleted successfully' });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete plan' });
+    res.status(500).json({ success: false, error: 'Failed to delete plan' });
   }
 });
 

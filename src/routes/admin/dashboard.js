@@ -23,7 +23,7 @@ router.get('/stats', async (req, res) => {
     ] = await Promise.all([
       // Users
       prisma.users.count(),
-      prisma.users.count({ where: { status: 'ACTIVE' } }),
+      prisma.users.count({ where: { is_active: true } }),
       prisma.users.count({ where: { created_at: { gte: todayStart } } }),
       prisma.users.aggregate({ _sum: { balance: true } }),
 
@@ -45,7 +45,7 @@ router.get('/stats', async (req, res) => {
       prisma.investments.aggregate({
         where: { status: 'ACTIVE' },
         _count: true,
-        _sum: { amount: true, expected_profit: true }
+        _sum: { amount: true, total_paid: true }
       }),
 
       // Today Deposits
@@ -111,7 +111,7 @@ router.get('/stats', async (req, res) => {
         todayWithdrawalsSum: todayWithdrawalsStats._sum.amount || 0,
         todayInvestmentsSum: todayInvestmentsStats._sum.amount || 0,
         
-        totalInterestAmount: investmentsStats._sum.expected_profit || 0
+        totalInterestAmount: investmentsStats._sum.total_paid || 0
       }
     });
   } catch (error) {
