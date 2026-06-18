@@ -1,0 +1,164 @@
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const router = Router();
+const prisma = new PrismaClient();
+
+// Get all users
+router.get('/', async (req, res) => {
+  try {
+    const users = await prisma.users.findMany({
+      orderBy: { created_at: 'desc' },
+      include: {
+        country: true
+      }
+    });
+    res.json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Get user details
+router.get('/:id', async (req, res) => {
+  try {
+    const user = await prisma.users.findUnique({
+      where: { id: req.params.id },
+      include: {
+        country: true,
+        transactions: { orderBy: { created_at: 'desc' }, take: 10 },
+        investments: true
+      }
+    });
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    res.json({ success: true, data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch user' });
+  }
+});
+
+// Update user settings/permissions
+router.put('/:id', async (req, res) => {
+  try {
+    const data = { ...req.body };
+    if (data.new_password) {
+      const bcrypt = await import('bcrypt');
+      data.password_hash = await bcrypt.hash(data.new_password, 10);
+    }
+    delete data.new_password;
+
+    const user = await prisma.users.update({
+      where: { id: req.params.id },
+      data: data
+    });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// Manual Credit
+router.post('/:id/credit', async (req, res) => {
+  const { amount, reason, balance_type } = req.body; // balance_type: 'main' or 'gift'
+  try {
+    const user = await prisma.users.findUnique({ where: { id: req.params.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const currentBalance = balance_type === 'gift' ? user.gift_balance : user.balance;
+    const newBalance = Number(currentBalance) + Number(amount);
+
+    const updatedUser = await prisma.$transaction([
+      prisma.users.update({
+        where: { id: user.id },
+        data: balance_type === 'gift' ? { gift_balance: newBalance } : { balance: newBalance }
+      }),
+      prisma.transactions.create({
+        data: {
+          user_id: user.id,
+          type: 'ADMIN_CREDIT',
+          amount: amount,
+          balance_before: currentBalance,
+          balance_after: newBalance,
+          description: reason || 'Manual credit by admin'
+        }
+      })
+    ]);
+
+    res.json(updatedUser[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Credit failed', details: error.message });
+  }
+});
+
+// Manual Debit
+router.post('/:id/debit', async (req, res) => {
+  const { amount, reason, balance_type } = req.body;
+  try {
+    const user = await prisma.users.findUnique({ where: { id: req.params.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const currentBalance = balance_type === 'gift' ? user.gift_balance : user.balance;
+    if (Number(currentBalance) < Number(amount)) {
+      return res.status(400).json({ error: 'Insufficient balance for debit' });
+    }
+    const newBalance = Number(currentBalance) - Number(amount);
+
+    const updatedUser = await prisma.$transaction([
+      prisma.users.update({
+        where: { id: user.id },
+        data: balance_type === 'gift' ? { gift_balance: newBalance } : { balance: newBalance }
+      }),
+      prisma.transactions.create({
+        data: {
+          user_id: user.id,
+          type: 'ADMIN_DEBIT',
+          amount: amount,
+          balance_before: currentBalance,
+          balance_after: newBalance,
+          description: reason || 'Manual debit by admin'
+        }
+      })
+    ]);
+
+    res.json(updatedUser[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Debit failed', details: error.message });
+  }
+});
+
+// Delete user
+router.delete('/:id', async (req, res) => {
+  try {
+    // We should ideally delete associated records first or rely on Prisma cascade delete
+    // If cascade is not set up, we'll manually delete transactions and investments first
+    await prisma.transactions.deleteMany({ where: { user_id: req.params.id } });
+    await prisma.investments.deleteMany({ where: { user_id: req.params.id } });
+    
+    await prisma.users.delete({
+      where: { id: req.params.id }
+    });
+    
+    res.json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete user', details: error.message });
+  }
+});
+
+// Impersonate user
+router.post('/:id/impersonate', async (req, res) => {
+  try {
+    const user = await prisma.users.findUnique({ where: { id: req.params.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    // Generate a user token (same as what normal login generates)
+    const jwt = await import('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
+    const token = jwt.default.sign({ id: user.id, email: user.email, role: 'user' }, JWT_SECRET, { expiresIn: '2h' });
+    
+    res.json({ success: true, token });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate impersonation token', details: error.message });
+  }
+});
+
+export default router;

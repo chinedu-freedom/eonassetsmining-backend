@@ -1,0 +1,180 @@
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const router = Router();
+const prisma = new PrismaClient();
+
+// ----- Gift Codes -----
+router.get('/gift-codes', async (req, res) => {
+  try {
+    const codes = await prisma.gift_codes.findMany({ orderBy: { created_at: 'desc' } });
+    res.json(codes);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch gift codes' });
+  }
+});
+
+router.post('/gift-codes', async (req, res) => {
+  try {
+    const data = { ...req.body, created_by: req.user.id };
+    const code = await prisma.gift_codes.create({ data });
+    res.status(201).json(code);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create gift code' });
+  }
+});
+
+router.put('/gift-codes/:id', async (req, res) => {
+  try {
+    const code = await prisma.gift_codes.update({ where: { id: req.params.id }, data: req.body });
+    res.json(code);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update gift code' });
+  }
+});
+
+router.delete('/gift-codes/:id', async (req, res) => {
+  try {
+    await prisma.gift_codes.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Gift code deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete gift code' });
+  }
+});
+
+// ----- Tasks -----
+router.get('/tasks', async (req, res) => {
+  try {
+    const tasks = await prisma.tasks.findMany({ orderBy: { created_at: 'desc' } });
+    res.json(tasks);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+});
+
+router.post('/tasks', async (req, res) => {
+  try {
+    const task = await prisma.tasks.create({ data: req.body });
+    res.status(201).json(task);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+router.put('/tasks/:id', async (req, res) => {
+  try {
+    const task = await prisma.tasks.update({ where: { id: req.params.id }, data: req.body });
+    res.json(task);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+router.delete('/tasks/:id', async (req, res) => {
+  try {
+    await prisma.tasks.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Task deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
+// ----- Daily Check-Ins -----
+router.get('/check-ins', async (req, res) => {
+  try {
+    const checkins = await prisma.daily_checkins.findMany({ orderBy: { day_number: 'asc' } });
+    res.json(checkins);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch check-ins' });
+  }
+});
+
+router.post('/check-ins', async (req, res) => {
+  try {
+    const checkin = await prisma.daily_checkins.create({ data: req.body });
+    res.status(201).json(checkin);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create check-in day' });
+  }
+});
+
+router.put('/check-ins/:id', async (req, res) => {
+  try {
+    const checkin = await prisma.daily_checkins.update({ where: { id: req.params.id }, data: req.body });
+    res.json(checkin);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update check-in day' });
+  }
+});
+
+router.delete('/check-ins/:id', async (req, res) => {
+  try {
+    await prisma.daily_checkins.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Check-in day deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete check-in day' });
+  }
+});
+
+// ----- Spin Prizes -----
+router.get('/spin-prizes', async (req, res) => {
+  try {
+    const prizes = await prisma.spin_prizes.findMany({ orderBy: { position: 'asc' } });
+    res.json(prizes);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch spin prizes' });
+  }
+});
+
+router.post('/spin-prizes', async (req, res) => {
+  try {
+    const prize = await prisma.spin_prizes.create({ data: req.body });
+    res.status(201).json(prize);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create spin prize' });
+  }
+});
+
+router.put('/spin-prizes/:id', async (req, res) => {
+  try {
+    const prize = await prisma.spin_prizes.update({ where: { id: req.params.id }, data: req.body });
+    res.json(prize);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update spin prize' });
+  }
+});
+
+router.delete('/spin-prizes/:id', async (req, res) => {
+  try {
+    await prisma.spin_prizes.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Spin prize deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete spin prize' });
+  }
+});
+
+// ----- Spin Settings -----
+router.get('/spin-settings', async (req, res) => {
+  try {
+    const settings = await prisma.spin_settings.findFirst();
+    res.json(settings || {});
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch spin settings' });
+  }
+});
+
+router.put('/spin-settings', async (req, res) => {
+  try {
+    let settings = await prisma.spin_settings.findFirst();
+    if (settings) {
+      settings = await prisma.spin_settings.update({ where: { id: settings.id }, data: req.body });
+    } else {
+      settings = await prisma.spin_settings.create({ data: req.body });
+    }
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update spin settings' });
+  }
+});
+
+export default router;

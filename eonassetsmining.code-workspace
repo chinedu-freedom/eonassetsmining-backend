@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../eonassetsmining"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../eonassetsmining-user"
+		}
+	],
+	"settings": {}
+}
