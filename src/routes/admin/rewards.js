@@ -42,6 +42,22 @@ router.delete('/gift-codes/:id', async (req, res) => {
   }
 });
 
+// ----- Gift Code Claims -----
+router.get('/gift-code-claims', async (req, res) => {
+  try {
+    const claims = await prisma.gift_code_claims.findMany({
+      include: {
+        user: { select: { full_name: true, email: true } },
+        gift_code: { select: { code: true } }
+      },
+      orderBy: { claimed_at: 'desc' }
+    });
+    res.json(claims);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch gift code claims' });
+  }
+});
+
 // ----- Tasks -----
 router.get('/tasks', async (req, res) => {
   try {
@@ -82,7 +98,27 @@ router.delete('/tasks/:id', async (req, res) => {
 // ----- Daily Check-Ins -----
 router.get('/check-ins', async (req, res) => {
   try {
-    const checkins = await prisma.daily_checkins.findMany({ orderBy: { day_number: 'asc' } });
+    let checkins = await prisma.daily_checkins.findMany({ orderBy: { day_number: 'asc' } });
+    
+    // Auto-seed if empty
+    if (checkins.length === 0) {
+      const defaultCheckins = [
+        { day_number: 1, reward_amount: 0.10, description: "First check-in reward" },
+        { day_number: 2, reward_amount: 0.20, description: "Day 2 reward" },
+        { day_number: 3, reward_amount: 0.02, description: "Day 3 reward" },
+        { day_number: 4, reward_amount: 0.10, description: "Day 4 reward" },
+        { day_number: 5, reward_amount: 0.30, description: "Day 5 reward" },
+        { day_number: 6, reward_amount: 0.40, description: "Day 6 reward" },
+        { day_number: 7, reward_amount: 0.50, description: "Maximum reward - Complete 7 days!" },
+      ];
+      
+      await prisma.daily_checkins.createMany({
+        data: defaultCheckins
+      });
+      
+      checkins = await prisma.daily_checkins.findMany({ orderBy: { day_number: 'asc' } });
+    }
+    
     res.json(checkins);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch check-ins' });
@@ -95,6 +131,27 @@ router.post('/check-ins', async (req, res) => {
     res.status(201).json(checkin);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create check-in day' });
+  }
+});
+
+router.put('/check-ins/bulk', async (req, res) => {
+  try {
+    const { checkins } = req.body;
+    
+    // Process all updates sequentially
+    for (const item of checkins) {
+      await prisma.daily_checkins.update({
+        where: { id: item.id },
+        data: {
+          reward_amount: item.reward_amount,
+          description: item.description
+        }
+      });
+    }
+    
+    res.json({ message: 'All check-ins updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update check-ins' });
   }
 });
 

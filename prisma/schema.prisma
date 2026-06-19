@@ -552,6 +552,10 @@ model settings {
   level2_commission        Decimal  @default(0) @db.Decimal(5, 2)
   level3_commission        Decimal  @default(0) @db.Decimal(5, 2)
   
+  // Features
+  live_market_enabled      Boolean  @default(true)
+  daily_checkin_enabled    Boolean  @default(true)
+  
   updated_at               DateTime @updatedAt
 
   @@map("settings")

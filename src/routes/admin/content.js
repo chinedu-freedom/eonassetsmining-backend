@@ -49,7 +49,6 @@ const createCrudRoutes = (modelName) => {
 
 // Mount CRUD routes for content modules
 router.use('/news', createCrudRoutes('news'));
-router.use('/sliders', createCrudRoutes('sliders'));
 router.use('/partners', createCrudRoutes('partners'));
 router.use('/team', createCrudRoutes('team_members'));
 

@@ -57,7 +57,26 @@ router.use('/market-assets', createCrudRoutes('market_assets'));
 // ----- Global Platform Settings -----
 router.get('/platform', async (req, res) => {
   try {
-    const settings = await prisma.settings.findFirst();
+    let settings = await prisma.settings.findFirst();
+    if (!settings) {
+      settings = await prisma.settings.create({
+        data: {
+          site_name: "Eon Assets Mining",
+          site_title: "Eon Assets",
+          currency_name: "USD",
+          currency_symbol: "$",
+          timezone: "UTC",
+          theme_color: "#000000",
+          support_email: "support@eonassets.com",
+          whatsapp_number: "",
+          telegram_link: "",
+          welcome_bonus: 0,
+          welcome_bonus_destination: "deposit",
+          daily_checkin_enabled: true,
+          live_market_enabled: true
+        }
+      });
+    }
     res.json(settings || {});
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch platform settings' });

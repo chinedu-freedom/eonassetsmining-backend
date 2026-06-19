@@ -8,6 +8,11 @@ import transactionsRoutes from './transactions.js';
 import rewardsRoutes from './rewards.js';
 import contentRoutes from './content.js';
 import settingsRoutes from './settings.js';
+import newsRoutes from './news.js';
+import partnersRoutes from './partners.js';
+import activitiesRoutes from './activities.js';
+import slidersRoutes from './sliders.js';
+import liveMarketRoutes from './live-market.js';
 
 const router = Router();
 
@@ -21,5 +26,10 @@ router.use('/transactions', transactionsRoutes);
 router.use('/rewards', rewardsRoutes);
 router.use('/content', contentRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/news', newsRoutes);
+router.use('/partners', partnersRoutes);
+router.use('/activities', activitiesRoutes);
+router.use('/sliders', slidersRoutes);
+router.use('/live-market', liveMarketRoutes);
 
 export default router;
