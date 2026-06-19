@@ -149,7 +149,7 @@ router.put('/check-ins/bulk', async (req, res) => {
       });
     }
     
-    res.json({ message: 'All check-ins updated successfully' });
+    // res.json({ message: 'All check-ins updated successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update check-ins' });
   }
@@ -213,8 +213,31 @@ router.delete('/spin-prizes/:id', async (req, res) => {
 // ----- Spin Settings -----
 router.get('/spin-settings', async (req, res) => {
   try {
-    const settings = await prisma.spin_settings.findFirst();
-    res.json(settings || {});
+    let settings = await prisma.spin_settings.findFirst();
+    if (!settings) {
+      settings = await prisma.spin_settings.create({
+        data: {
+          feature_enabled: true,
+          cost_per_spin: 0,
+          free_spins_per_deposit: 1,
+          daily_referral_target: 1,
+          spins_for_daily_challenge: 1,
+          free_spins_daily: 1
+        }
+      });
+    }
+
+    // Aggregate stats
+    const totalSpinsUsedAggr = await prisma.user_spins.aggregate({ _sum: { total_spins_used: true } });
+    const totalRewardsAggr = await prisma.user_spins.aggregate({ _sum: { total_rewards_earned: true } });
+    const freeSpinsUsedCount = await prisma.spin_logs.count({ where: { spin_type: 'free' } });
+
+    res.json({
+      ...settings,
+      total_spins_used: totalSpinsUsedAggr._sum.total_spins_used || 0,
+      total_rewards_earned: totalRewardsAggr._sum.total_rewards_earned || 0,
+      free_spins_used: freeSpinsUsedCount
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch spin settings' });
   }

@@ -66,12 +66,12 @@ router.get('/platform', async (req, res) => {
           currency_name: "USD",
           currency_symbol: "$",
           timezone: "UTC",
-          theme_color: "#000000",
-          support_email: "support@eonassets.com",
-          whatsapp_number: "",
-          telegram_link: "",
-          welcome_bonus: 0,
+          registration_bonus: 0,
           welcome_bonus_destination: "deposit",
+          min_deposit: 10,
+          max_deposit: 10000,
+          daily_withdrawal_limit: 5000,
+          min_withdrawal: 10,
           daily_checkin_enabled: true,
           live_market_enabled: true
         }
