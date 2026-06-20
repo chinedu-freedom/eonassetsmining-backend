@@ -13,6 +13,9 @@ import partnersRoutes from './partners.js';
 import activitiesRoutes from './activities.js';
 import slidersRoutes from './sliders.js';
 import liveMarketRoutes from './live-market.js';
+import countriesRoutes from './countries.js';
+import languagesRoutes from './languages.js';
+import aboutRoutes from './about.js';
 
 const router = Router();
 
@@ -31,5 +34,8 @@ router.use('/partners', partnersRoutes);
 router.use('/activities', activitiesRoutes);
 router.use('/sliders', slidersRoutes);
 router.use('/live-market', liveMarketRoutes);
+router.use('/countries', countriesRoutes);
+router.use('/languages', languagesRoutes);
+router.use('/about', aboutRoutes);
 
 export default router;

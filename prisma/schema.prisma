@@ -471,8 +471,9 @@ model payout_cryptocurrencies {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   icon           String?
   name           String
-  symbol         String   @unique
+  symbol         String
   network        String
+  network_name   String?
   min_amount     Decimal  @db.Decimal(18, 8)
   max_amount     Decimal  @db.Decimal(18, 8)
   fee_percentage Decimal  @default(0) @db.Decimal(5, 2)
@@ -480,6 +481,7 @@ model payout_cryptocurrencies {
   sort_order     Int      @default(0)
   status         Boolean  @default(true)
 
+  @@unique([symbol, network])
   @@map("payout_cryptocurrencies")
 }
 
@@ -555,6 +557,8 @@ model settings {
   // Features
   live_market_enabled      Boolean  @default(true)
   daily_checkin_enabled    Boolean  @default(true)
+  require_investment_to_withdraw Boolean @default(false)
+  min_investment_to_withdraw     Int     @default(1)
   
   updated_at               DateTime @updatedAt
 

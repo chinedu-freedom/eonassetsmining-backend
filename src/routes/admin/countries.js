@@ -1,0 +1,96 @@
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const router = Router();
+const prisma = new PrismaClient();
+
+// Get all countries
+router.get('/', async (req, res) => {
+  try {
+    const countries = await prisma.countries.findMany({
+      orderBy: { country_name: 'asc' }
+    });
+    res.json(countries);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch countries' });
+  }
+});
+
+// Get single country
+router.get('/:id', async (req, res) => {
+  try {
+    const country = await prisma.countries.findUnique({
+      where: { id: req.params.id }
+    });
+    if (!country) return res.status(404).json({ error: 'Country not found' });
+    res.json(country);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch country' });
+  }
+});
+
+// Create country
+router.post('/', async (req, res) => {
+  try {
+    const { country_code, country_name, currency_symbol, currency_code, exchange_rate, auto_update, status } = req.body;
+    const newCountry = await prisma.countries.create({
+      data: {
+        country_code,
+        country_name,
+        currency_symbol,
+        currency_code,
+        exchange_rate: Number(exchange_rate),
+        auto_update: Boolean(auto_update),
+        status: status === 'active' || status === true
+      }
+    });
+    res.status(201).json(newCountry);
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Country code already exists' });
+    }
+    console.error("Create country error:", error);
+    res.status(500).json({ error: 'Failed to create country' });
+  }
+});
+
+// Update country
+router.put('/:id', async (req, res) => {
+  try {
+    const { country_code, country_name, currency_symbol, currency_code, exchange_rate, auto_update, status } = req.body;
+    const updatedCountry = await prisma.countries.update({
+      where: { id: req.params.id },
+      data: {
+        country_code,
+        country_name,
+        currency_symbol,
+        currency_code,
+        exchange_rate: Number(exchange_rate),
+        auto_update: Boolean(auto_update),
+        status: status === 'active' || status === true
+      }
+    });
+    res.json(updatedCountry);
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Country code already exists' });
+    }
+    console.error("Update country error:", error);
+    res.status(500).json({ error: 'Failed to update country' });
+  }
+});
+
+// Delete country
+router.delete('/:id', async (req, res) => {
+  try {
+    await prisma.countries.delete({
+      where: { id: req.params.id }
+    });
+    res.json({ message: 'Country deleted successfully' });
+  } catch (error) {
+    console.error("Delete country error:", error);
+    res.status(500).json({ error: 'Failed to delete country' });
+  }
+});
+
+export default router;

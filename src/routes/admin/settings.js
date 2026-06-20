@@ -17,12 +17,25 @@ const createCrudRoutes = (modelName) => {
     }
   });
 
+  r.get('/:id', async (req, res) => {
+    try {
+      const item = await prisma[modelName].findUnique({ where: { id: req.params.id } });
+      if (!item) {
+        return res.status(404).json({ error: `Item not found` });
+      }
+      res.json(item);
+    } catch (e) {
+      res.status(500).json({ error: `Failed to fetch ${modelName} by ID` });
+    }
+  });
+
   r.post('/', async (req, res) => {
     try {
       const item = await prisma[modelName].create({ data: req.body });
       res.status(201).json(item);
     } catch (e) {
-      res.status(500).json({ error: `Failed to create ${modelName}` });
+      console.error(`Error creating ${modelName}:`, e);
+      res.status(500).json({ error: `Failed to create ${modelName}`, details: e.message });
     }
   });
 
@@ -93,7 +106,8 @@ router.put('/platform', async (req, res) => {
     }
     res.json(settings);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update platform settings' });
+    console.error("Settings Update Error:", error);
+    res.status(500).json({ error: 'Failed to update platform settings', details: error.message });
   }
 });
 
