@@ -27,6 +27,7 @@ model users {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email            String    @unique
   password_hash    String
+  withdrawal_pin   String?
   full_name        String
   username         String?   @unique
   phone_number     String?
@@ -38,6 +39,8 @@ model users {
   referral_code    String    @unique
   referred_by      String?   @db.Uuid
   email_verified   Boolean   @default(false)
+  verification_code String?
+  verification_expires DateTime?
   is_active        Boolean   @default(true)
   last_login       DateTime?
   last_ip          String?
