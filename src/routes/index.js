@@ -8,6 +8,7 @@ import slidersRoutes from './sliders.js';
 import liveMarketRoutes from './live-market.js';
 import plansRoutes from './plans.js';
 import teamRoutes from './team.js';
+import settingsRoutes from './settings.js';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/sliders', slidersRoutes);
 router.use('/live-market', liveMarketRoutes);
 router.use('/plans', plansRoutes);
 router.use('/team-members', teamRoutes);
+router.use('/settings', settingsRoutes);
 
 export default router;

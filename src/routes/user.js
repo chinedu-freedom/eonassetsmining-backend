@@ -338,6 +338,252 @@ router.post('/checkin', authenticate, async (req, res) => {
 });
 
 // Get User Team Statistics
+// Get tasks and user progress
+router.get('/tasks', authenticate, async (req, res) => {
+  try {
+    const tasks = await prisma.tasks.findMany({
+      where: { status: true },
+      orderBy: { created_at: 'desc' }
+    });
+
+    // We only check task claims for today since these are daily tasks
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const userClaims = await prisma.task_claims.findMany({
+      where: { 
+        user_id: req.user.id,
+        completed_at: {
+          gte: startOfDay
+        }
+      }
+    });
+
+    const todayReferralsCount = await prisma.users.count({
+      where: {
+        referred_by: req.user.id,
+        created_at: {
+          gte: startOfDay
+        }
+      }
+    });
+
+    const tasksWithProgress = tasks.map(task => {
+      const claim = userClaims.find(c => c.task_id === task.id);
+      const isClaimed = !!claim;
+      const progress = isClaimed ? task.required_referrals : Math.min(todayReferralsCount, task.required_referrals);
+      
+      return {
+        ...task,
+        progress,
+        isClaimed,
+        isReady: progress >= task.required_referrals && !isClaimed
+      };
+    });
+
+    res.json({
+      success: true,
+      todayReferralsCount,
+      tasks: tasksWithProgress
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch tasks' });
+  }
+});
+
+// Claim a task reward
+router.post('/tasks/claim', authenticate, async (req, res) => {
+  try {
+    const { taskId } = req.body;
+    const userId = req.user.id;
+
+    const task = await prisma.tasks.findUnique({ where: { id: taskId } });
+    if (!task || !task.status) {
+      return res.status(404).json({ success: false, error: 'Task not found or inactive' });
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const existingClaim = await prisma.task_claims.findFirst({
+      where: { 
+        task_id: taskId, 
+        user_id: userId,
+        completed_at: {
+          gte: startOfDay
+        }
+      }
+    });
+
+    if (existingClaim) {
+      return res.status(400).json({ success: false, error: 'Task already claimed today' });
+    }
+
+    const todayReferralsCount = await prisma.users.count({
+      where: {
+        referred_by: userId,
+        created_at: {
+          gte: startOfDay
+        }
+      }
+    });
+
+    if (todayReferralsCount < task.required_referrals) {
+      return res.status(400).json({ success: false, error: 'Task requirements not met' });
+    }
+
+    // Process claim in transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.task_claims.create({
+        data: {
+          task_id: taskId,
+          user_id: userId,
+          status: 'COMPLETED'
+        }
+      });
+
+      // Update user balance
+      const updatedUser = await tx.users.update({
+        where: { id: userId },
+        data: { balance: { increment: task.reward_amount } }
+      });
+
+      // Record transaction
+      await tx.transactions.create({
+        data: {
+          user_id: userId,
+          type: 'TASK_REWARD',
+          amount: task.reward_amount,
+          balance_before: updatedUser.balance - task.reward_amount,
+          balance_after: updatedUser.balance,
+          description: `Reward for completing task: ${task.task_name}`
+        }
+      });
+    });
+
+    res.json({ success: true, message: 'Task claimed successfully' });
+  } catch (error) {
+    console.error('Claim task error:', error);
+    res.status(500).json({ success: false, error: 'Failed to claim task' });
+  }
+});
+
+// Get Treasure History
+router.get('/treasure/history', authenticate, async (req, res) => {
+  try {
+    const claims = await prisma.gift_code_claims.findMany({
+      where: { user_id: req.user.id },
+      include: { gift_code: true },
+      orderBy: { claimed_at: 'desc' }
+    });
+    res.json({ success: true, claims });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch treasure history' });
+  }
+});
+
+// Claim Treasure Gift Code
+router.post('/treasure/claim', authenticate, async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ success: false, error: 'Gift code is required' });
+
+    const userId = req.user.id;
+
+    // Find the code
+    const giftCode = await prisma.gift_codes.findUnique({
+      where: { code }
+    });
+
+    if (!giftCode) {
+      return res.status(404).json({ success: false, error: 'Invalid gift code' });
+    }
+
+    if (!giftCode.status) {
+      return res.status(400).json({ success: false, error: 'Gift code is inactive' });
+    }
+
+    if (giftCode.expires_at && new Date() > new Date(giftCode.expires_at)) {
+      return res.status(400).json({ success: false, error: 'Gift code has expired' });
+    }
+
+    if (giftCode.used_count >= giftCode.max_uses) {
+      return res.status(400).json({ success: false, error: 'Gift code already used' });
+    }
+
+    // Check if already claimed
+    const existingClaim = await prisma.gift_code_claims.findFirst({
+      where: {
+        gift_code_id: giftCode.id,
+        user_id: userId
+      }
+    });
+
+    if (existingClaim) {
+      return res.status(400).json({ success: false, error: 'You have already claimed this gift code' });
+    }
+
+    // Process claim in transaction
+    await prisma.$transaction(async (tx) => {
+      // Create claim
+      await tx.gift_code_claims.create({
+        data: {
+          gift_code_id: giftCode.id,
+          user_id: userId,
+          reward_amount: giftCode.reward_amount
+        }
+      });
+
+      // Update code usage
+      await tx.gift_codes.update({
+        where: { id: giftCode.id },
+        data: { used_count: { increment: 1 } }
+      });
+
+      // Fetch user to get current balances
+      const user = await tx.users.findUnique({ where: { id: userId } });
+
+      let balance_before = 0;
+      let balance_after = 0;
+
+      // Update user balance based on reward_type
+      if (giftCode.reward_type === 'GIFT_BALANCE') {
+        balance_before = user.gift_balance;
+        balance_after = Number(user.gift_balance) + Number(giftCode.reward_amount);
+        await tx.users.update({
+          where: { id: userId },
+          data: { gift_balance: balance_after }
+        });
+      } else {
+        // default to normal balance
+        balance_before = user.balance;
+        balance_after = Number(user.balance) + Number(giftCode.reward_amount);
+        await tx.users.update({
+          where: { id: userId },
+          data: { balance: balance_after }
+        });
+      }
+
+      // Record transaction
+      await tx.transactions.create({
+        data: {
+          user_id: userId,
+          type: 'TREASURE_REWARD',
+          amount: giftCode.reward_amount,
+          balance_before: balance_before,
+          balance_after: balance_after,
+          description: `Treasure Reward from code: ${giftCode.code_name || giftCode.code}`
+        }
+      });
+    });
+
+    res.json({ success: true, message: 'Gift code claimed successfully!', reward_amount: giftCode.reward_amount });
+  } catch (error) {
+    console.error('Claim gift code error:', error);
+    res.status(500).json({ success: false, error: 'Failed to claim gift code' });
+  }
+});
+
 router.get('/team', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -697,6 +943,227 @@ router.post('/me/verify-email', authenticate, async (req, res) => {
   }
 });
 
-export default router;
+// ==========================================
+// SPIN WHEEL ENDPOINTS
+// ==========================================
 
+// Get spin wheel configuration and user spin data
+router.get('/spin', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch settings and prizes
+    const settings = await prisma.spin_settings.findFirst();
+    if (!settings || !settings.feature_enabled) {
+      return res.status(403).json({ success: false, message: 'Spin wheel is currently disabled' });
+    }
+
+    const prizes = await prisma.spin_prizes.findMany({
+      where: { status: true },
+      orderBy: { position: 'asc' }
+    });
+
+    // Ensure user_spins record exists
+    let userSpins = await prisma.user_spins.findUnique({ where: { user_id: userId } });
+    if (!userSpins) {
+      userSpins = await prisma.user_spins.create({
+        data: {
+          user_id: userId,
+          free_spins_remaining: 0,
+          total_spins_used: 0,
+          total_rewards_earned: 0
+        }
+      });
+    }
+
+    // Get recent wins (last 5)
+    const recentWins = await prisma.spin_logs.findMany({
+      where: { user_id: userId },
+      include: { prize: true },
+      orderBy: { created_at: 'desc' },
+      take: 10
+    });
+
+    // We also need the user's available balance to see if they can afford a paid spin
+    const user = await prisma.users.findUnique({
+      where: { id: userId },
+      select: { balance: true }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        settings,
+        prizes,
+        userSpins,
+        recentWins,
+        accountBalance: user.balance
+      }
+    });
+
+  } catch (error) {
+    console.error('Fetch spin data error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch spin data' });
+  }
+});
+
+// Play a spin
+router.post('/spin', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch settings and check if enabled
+    const settings = await prisma.spin_settings.findFirst();
+    if (!settings || !settings.feature_enabled) {
+      return res.status(403).json({ success: false, message: 'Spin wheel is currently disabled' });
+    }
+
+    const user = await prisma.users.findUnique({
+      where: { id: userId }
+    });
+
+    let userSpins = await prisma.user_spins.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!userSpins) {
+      userSpins = await prisma.user_spins.create({
+        data: { user_id: userId }
+      });
+    }
+
+    let spinType = 'paid';
+    let cost = Number(settings.cost_per_spin);
+
+    // Check if they have free spins
+    if (userSpins && userSpins.free_spins_remaining > 0) {
+      spinType = 'free';
+      cost = 0;
+    } else {
+      // Check if they can afford paid spin
+      if (Number(user.balance) < cost) {
+        return res.status(400).json({ success: false, message: 'Insufficient balance for a spin' });
+      }
+    }
+
+    // Determine the prize
+    const prizes = await prisma.spin_prizes.findMany({
+      where: { status: true },
+      orderBy: { position: 'asc' }
+    });
+
+    if (prizes.length === 0) {
+      return res.status(500).json({ success: false, message: 'No prizes configured' });
+    }
+
+    // Roulette Wheel Selection using weights
+    const totalWeight = prizes.reduce((sum, p) => sum + Number(p.weight), 0);
+    let randomNum = Math.random() * totalWeight;
+    let selectedPrize = prizes[0];
+    let selectedIndex = 0;
+
+    for (let i = 0; i < prizes.length; i++) {
+      randomNum -= Number(prizes[i].weight);
+      if (randomNum <= 0) {
+        selectedPrize = prizes[i];
+        selectedIndex = i;
+        break;
+      }
+    }
+
+    const rewardAmount = Number(selectedPrize.value);
+    let currentBalance = Number(user.balance);
+
+    // Process the transaction using a Prisma transaction to ensure consistency
+    await prisma.$transaction(async (tx) => {
+      // 1. Deduct cost or process free spin
+      if (spinType === 'free') {
+        await tx.user_spins.update({
+          where: { user_id: userId },
+          data: { 
+            free_spins_remaining: { decrement: 1 },
+            total_spins_used: { increment: 1 },
+            total_rewards_earned: { increment: rewardAmount }
+          }
+        });
+      } else {
+        await tx.users.update({
+          where: { id: userId },
+          data: { balance: { decrement: cost } }
+        });
+        await tx.user_spins.update({
+          where: { user_id: userId },
+          data: { 
+            total_spins_used: { increment: 1 },
+            total_rewards_earned: { increment: rewardAmount }
+          }
+        });
+        
+        const balanceAfterCost = currentBalance - cost;
+        // Log transaction for the cost
+        if (cost > 0) {
+            await tx.transactions.create({
+                data: {
+                  user_id: userId,
+                  type: 'spin_cost',
+                  amount: cost,
+                  balance_before: currentBalance,
+                  balance_after: balanceAfterCost,
+                  description: 'Spin Wheel Cost'
+                }
+            });
+        }
+        currentBalance = balanceAfterCost;
+      }
+
+      // 2. Add reward to balance if > 0
+      if (rewardAmount > 0) {
+        await tx.users.update({
+          where: { id: userId },
+          data: { balance: { increment: rewardAmount } }
+        });
+
+        const balanceAfterReward = currentBalance + rewardAmount;
+        // Log transaction for reward
+        await tx.transactions.create({
+          data: {
+            user_id: userId,
+            type: 'spin_reward',
+            amount: rewardAmount,
+            balance_before: currentBalance,
+            balance_after: balanceAfterReward,
+            description: `Won ${selectedPrize.name} from Spin Wheel`
+          }
+        });
+        currentBalance = balanceAfterReward;
+      }
+
+      // 3. Log the spin
+      await tx.spin_logs.create({
+        data: {
+          user_id: userId,
+          prize_id: selectedPrize.id,
+          spin_type: spinType,
+          reward_earned: rewardAmount
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      data: {
+        prize: selectedPrize,
+        prizeIndex: selectedIndex,
+        spinType,
+        rewardAmount
+      }
+    });
+
+  } catch (error) {
+    console.error('Play spin error:', error);
+    res.status(500).json({ success: false, message: 'An error occurred while spinning' });
+  }
+});
+
+export default router;
 
