@@ -6,6 +6,8 @@ import newsRoutes from './news.js';
 import partnersRoutes from './partners.js';
 import slidersRoutes from './sliders.js';
 import liveMarketRoutes from './live-market.js';
+import plansRoutes from './plans.js';
+import teamRoutes from './team.js';
 
 const router = Router();
 
@@ -16,5 +18,7 @@ router.use('/news', newsRoutes);
 router.use('/partners', partnersRoutes);
 router.use('/sliders', slidersRoutes);
 router.use('/live-market', liveMarketRoutes);
+router.use('/plans', plansRoutes);
+router.use('/team-members', teamRoutes);
 
 export default router;

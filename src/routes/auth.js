@@ -87,6 +87,19 @@ router.get('/countries', async (req, res) => {
   }
 });
 
+// Get Languages
+router.get('/languages', async (req, res) => {
+  try {
+    const languages = await prisma.languages.findMany({
+      where: { status: true },
+      orderBy: { sort_order: 'asc' },
+    });
+    res.json({ success: true, data: languages });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch languages' });
+  }
+});
+
 // User Login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;

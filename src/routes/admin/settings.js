@@ -135,4 +135,21 @@ router.put('/email', async (req, res) => {
   }
 });
 
+router.get('/email/logs', async (req, res) => {
+  try {
+    const logs = await prisma.email_logs.findMany({
+      orderBy: { sent_at: 'desc' },
+      take: 100, // Limit to recent 100 logs
+      include: {
+        user: {
+          select: { email: true, full_name: true }
+        }
+      }
+    });
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch email logs' });
+  }
+});
+
 export default router;

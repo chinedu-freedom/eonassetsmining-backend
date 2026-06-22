@@ -508,6 +508,18 @@ model email_settings {
   smtp_pass_encrypted String
   from_email       String
   from_name        String
+  
+  // Notification Preferences
+  notify_deposit_processing     Boolean @default(true)
+  notify_deposit_approved       Boolean @default(true)
+  notify_deposit_rejected       Boolean @default(true)
+  notify_withdrawal_processing  Boolean @default(true)
+  notify_withdrawal_approved    Boolean @default(true)
+  notify_withdrawal_rejected    Boolean @default(true)
+  notify_news_update            Boolean @default(true)
+  notify_profit_return          Boolean @default(true)
+  notify_capital_return         Boolean @default(true)
+
   updated_at       DateTime @updatedAt
 
   @@map("email_settings")
