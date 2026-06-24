@@ -18,6 +18,12 @@ router.get('/', async (req, res) => {
         telegram_group: true,
         deposit_notice: true,
         withdrawal_notice: true,
+        min_withdrawal: true,
+        max_withdrawal: true,
+        withdrawal_charge: true,
+        min_deposit: true,
+        max_deposit: true,
+        deposit_charge: true,
         live_market_enabled: true
       }
     });
@@ -26,6 +32,21 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Settings fetch error:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch settings' });
+  }
+});
+
+// Get active payout cryptocurrencies for deposit options
+router.get('/payout-cryptos', async (req, res) => {
+  try {
+    const cryptos = await prisma.payout_cryptocurrencies.findMany({
+      where: { status: true },
+      orderBy: { sort_order: 'asc' }
+    });
+    
+    res.json({ success: true, data: cryptos });
+  } catch (error) {
+    console.error('Failed to fetch payout cryptos:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch cryptos' });
   }
 });
 

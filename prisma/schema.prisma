@@ -347,7 +347,6 @@ model deposits {
   id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id          String         @db.Uuid
   amount           Decimal        @db.Decimal(18, 8)
-  payment_method_id String         @db.Uuid
   cryptocurrency   String?        // e.g., BTC, USDT
   proof_image_url  String?
   status           String
@@ -356,7 +355,6 @@ model deposits {
   created_at       DateTime       @default(now())
 
   user          users           @relation(fields: [user_id], references: [id])
-  payment_method payment_methods @relation(fields: [payment_method_id], references: [id])
   approver      admins?         @relation("ApprovedDeposits", fields: [approved_by], references: [id])
 
   @@map("deposits")
@@ -455,20 +453,7 @@ model team_members {
   @@map("team_members")
 }
 
-model payment_methods {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String
-  type           String
-  min_amount     Decimal  @db.Decimal(18, 8)
-  max_amount     Decimal  @db.Decimal(18, 8)
-  charges        Decimal  @default(0) @db.Decimal(18, 8)
-  status         Boolean  @default(true)
-  instructions   String?  @db.Text
 
-  deposits deposits[]
-
-  @@map("payment_methods")
-}
 
 model payout_cryptocurrencies {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -477,10 +462,6 @@ model payout_cryptocurrencies {
   symbol         String
   network        String
   network_name   String?
-  min_amount     Decimal  @db.Decimal(18, 8)
-  max_amount     Decimal  @db.Decimal(18, 8)
-  fee_percentage Decimal  @default(0) @db.Decimal(5, 2)
-  fixed_fee      Decimal  @default(0) @db.Decimal(18, 8)
   sort_order     Int      @default(0)
   status         Boolean  @default(true)
 
@@ -554,8 +535,9 @@ model settings {
   
   // Deposit settings
   deposit_bonus            Decimal  @default(0) @db.Decimal(5, 2)
-  min_deposit              Decimal  @db.Decimal(18, 8)
-  max_deposit              Decimal  @db.Decimal(18, 8)
+  min_deposit              Decimal  @default(10) @db.Decimal(18, 8)
+  max_deposit              Decimal  @default(100000) @db.Decimal(18, 8)
+  deposit_charge           Decimal  @default(0) @db.Decimal(5, 2)
   
   // Withdrawal settings
   daily_withdrawal_limit   Decimal  @db.Decimal(18, 8)
@@ -563,6 +545,8 @@ model settings {
   withdrawal_close_time    String?  // HH:MM format
   auto_withdrawal          Boolean  @default(false)
   min_withdrawal           Decimal  @db.Decimal(18, 8)
+  max_withdrawal           Decimal  @default(10000) @db.Decimal(18, 8)
+  withdrawal_charge        Decimal  @default(2) @db.Decimal(5, 2)
   
   // Referral
   level1_commission        Decimal  @default(0) @db.Decimal(5, 2)

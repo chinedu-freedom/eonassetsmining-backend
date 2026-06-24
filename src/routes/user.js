@@ -1165,5 +1165,294 @@ router.post('/spin', authenticate, async (req, res) => {
   }
 });
 
+router.post('/deposit', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, cryptoId } = req.body;
+
+    if (!amount || !cryptoId) {
+      return res.status(400).json({ success: false, message: 'Amount and cryptocurrency are required' });
+    }
+
+    const cryptoOption = await prisma.payout_cryptocurrencies.findUnique({
+      where: { id: cryptoId }
+    });
+
+    if (!cryptoOption) {
+      return res.status(404).json({ success: false, message: 'Cryptocurrency not found' });
+    }
+
+    // Fetch global settings for deposit limits
+    const settings = await prisma.settings.findFirst();
+    const minDep = Number(settings?.min_deposit || 10);
+    const maxDep = Number(settings?.max_deposit || 100000);
+
+    if (Number(amount) < minDep || Number(amount) > maxDep) {
+      return res.status(400).json({ success: false, message: `Amount must be between $${minDep} and $${maxDep}` });
+    }
+
+    // Create a PENDING deposit
+    const deposit = await prisma.deposits.create({
+      data: {
+        user_id: userId,
+        amount: Number(amount),
+        cryptocurrency: `${cryptoOption.symbol} (${cryptoOption.network})`,
+        status: 'PENDING'
+      }
+    });
+
+    // Call OxaPay to create an invoice
+    const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
+    if (!OXAPAY_MERCHANT_KEY) {
+      console.warn('OXAPAY_MERCHANT_KEY is missing! Using mock response.');
+      return res.json({
+        success: true,
+        message: 'Deposit requested successfully.',
+        payment_url: '/dashboard/wallet', // Fallback if no gateway
+        data: deposit
+      });
+    }
+
+    let oxapayNetwork = cryptoOption.network.toLowerCase();
+    if (oxapayNetwork === 'bitcoin') oxapayNetwork = 'btc';
+    if (oxapayNetwork === 'litecoin') oxapayNetwork = 'ltc';
+
+    const BACKEND_URL = process.env.BACKEND_URL || "https://api.eonassets.com"; // Adjust if needed
+    
+    // Using standard invoice request to get a payLink for redirection
+    const invoiceRes = await fetch("https://api.oxapay.com/merchants/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        merchant: OXAPAY_MERCHANT_KEY,
+        amount: Number(amount),
+        payCurrency: cryptoOption.symbol.toUpperCase(),
+        network: oxapayNetwork,
+        orderId: deposit.id, // We use the deposit ID as orderId
+        feePaidByPayer: 0,
+        callbackUrl: `${BACKEND_URL}/users/oxapay-webhook`,
+        description: `EonAssets Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
+      }),
+    });
+    
+    const json = await invoiceRes.json();
+
+    if (json.result === 100 && json.payLink) {
+      return res.json({
+        success: true,
+        message: 'Redirecting to payment gateway...',
+        payment_url: json.payLink,
+        data: deposit
+      });
+    } else {
+      console.error("OXAPAY_API_ERROR:", json);
+      return res.status(500).json({ success: false, message: 'Failed to generate payment invoice' });
+    }
+
+  } catch (error) {
+    console.error('Deposit error:', error);
+    res.status(500).json({ success: false, message: 'An error occurred while processing deposit' });
+  }
+});
+
+// OxaPay Webhook Handler
+router.post('/oxapay-webhook', async (req, res) => {
+  const payload = req.body;
+  const signature = req.headers["x-oxapay-signature"];
+  const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
+
+  console.log("OXAPAY_WEBHOOK_RECEIVED:", JSON.stringify(payload));
+
+  // Verify signature
+  if (OXAPAY_MERCHANT_KEY && signature) {
+    const crypto = await import('crypto');
+    const hmac = crypto.createHmac("sha512", OXAPAY_MERCHANT_KEY);
+    const expectedSignature = hmac.update(JSON.stringify(payload)).digest("hex");
+    if (signature !== expectedSignature) {
+      console.error("OXAPAY_WEBHOOK_INVALID_SIGNATURE");
+      return res.status(200).json({ ok: false, error: "Invalid signature" });
+    }
+  }
+
+  const rawStatus = payload?.status;
+  
+  if (rawStatus === 3 || rawStatus === "Expired") {
+    console.warn(`OXAPAY_WEBHOOK: Payment expired for OrderId: ${payload.orderId}`);
+    return res.status(200).json({ ok: true });
+  }
+
+  if (rawStatus === 1 || rawStatus === "Confirming" || rawStatus === "waiting") {
+    console.log(`OXAPAY_WEBHOOK: Confirming payment on blockchain for OrderId: ${payload.orderId}`);
+    return res.status(200).json({ ok: true });
+  }
+
+  // If paid successfully
+  if (rawStatus === 2 || rawStatus === "Paid") {
+    const paidAmount = Number(payload.amount) || 0;
+    const orderId = payload.orderId;
+
+    if (!orderId) {
+      console.error("OXAPAY_WEBHOOK_ERROR: orderId missing");
+      return res.status(200).json({ ok: true });
+    }
+
+    try {
+      const deposit = await prisma.deposits.findUnique({
+        where: { id: orderId }
+      });
+
+      if (!deposit) {
+        console.error("OXAPAY_WEBHOOK_ERROR: Deposit not found for id", orderId);
+        return res.status(200).json({ ok: true });
+      }
+
+      if (deposit.status !== 'PENDING') {
+        console.log(`OXAPAY_WEBHOOK: Deposit ${orderId} already processed (status: ${deposit.status})`);
+        return res.status(200).json({ ok: true });
+      }
+
+      // We use the actual paid amount
+      let creditAmount = paidAmount || Number(deposit.amount);
+
+      // Fetch global settings to apply deposit charge if any
+      const settings = await prisma.settings.findFirst();
+      const depositChargePercent = Number(settings?.deposit_charge || 0);
+      if (depositChargePercent > 0) {
+        const fee = creditAmount * (depositChargePercent / 100);
+        creditAmount = creditAmount - fee;
+      }
+
+      // Perform transaction to approve deposit and credit user
+      await prisma.$transaction(async (tx) => {
+        // 1. Update deposit status
+        await tx.deposits.update({
+          where: { id: deposit.id },
+          data: {
+            status: 'APPROVED',
+            amount: creditAmount,
+            approved_at: new Date()
+          }
+        });
+
+        // 2. Fetch user to get current balance
+        const user = await tx.users.findUnique({ where: { id: deposit.user_id } });
+        const balanceBefore = Number(user.balance);
+        const balanceAfter = balanceBefore + creditAmount;
+
+        // 3. Update user balance
+        await tx.users.update({
+          where: { id: deposit.user_id },
+          data: { balance: balanceAfter }
+        });
+
+        // 4. Create transaction log
+        await tx.transactions.create({
+          data: {
+            user_id: deposit.user_id,
+            type: 'DEPOSIT',
+            amount: creditAmount,
+            balance_before: balanceBefore,
+            balance_after: balanceAfter,
+            description: `Automated Deposit via OxaPay (${payload.currency || 'Crypto'})`
+          }
+        });
+      });
+
+      console.log(`OXAPAY_WEBHOOK_SUCCESS: Credited $${creditAmount} to user ${deposit.user_id}`);
+    } catch (err) {
+      console.error("OXAPAY_WEBHOOK_TRANSACTION_ERROR:", err);
+    }
+  }
+
+  return res.status(200).json({ ok: true });
+});
+
+router.post('/withdraw', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, network, wallet_address, password, method } = req.body;
+
+    if (!amount || !network || !wallet_address || !password) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+
+    // Fetch global settings
+    const settings = await prisma.settings.findFirst();
+    const minAmount = Number(settings?.min_withdrawal || 5);
+    const maxAmount = Number(settings?.max_withdrawal || 10000);
+    const feeRate = Number(settings?.withdrawal_charge || 2) / 100;
+
+    if (amount < minAmount) {
+      return res.status(400).json({ success: false, message: `Minimum withdrawal amount is $${minAmount}` });
+    }
+
+    if (amount > maxAmount) {
+      return res.status(400).json({ success: false, message: `Maximum withdrawal amount is $${maxAmount}` });
+    }
+
+    const user = await prisma.users.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Verify withdrawal password
+    if (!user.withdrawal_pin) {
+      return res.status(400).json({ success: false, message: 'Please set your withdrawal password in settings first' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.withdrawal_pin);
+    if (!isPasswordValid) {
+      return res.status(400).json({ success: false, message: 'Incorrect withdrawal password' });
+    }
+
+    if (Number(user.balance) < Number(amount)) {
+      return res.status(400).json({ success: false, message: 'Insufficient balance' });
+    }
+
+    const fees = Number(amount) * feeRate;
+    const netAmount = Number(amount) - fees;
+
+    await prisma.$transaction(async (tx) => {
+      // Deduct balance
+      await tx.users.update({
+        where: { id: userId },
+        data: { balance: { decrement: amount } }
+      });
+
+      // Create withdrawal record
+      const withdrawal = await tx.withdrawals.create({
+        data: {
+          user_id: userId,
+          amount: amount,
+          withdrawal_method: method === 'crypto' ? `${network}` : method,
+          fees: fees,
+          net_amount: netAmount,
+          wallet_address: wallet_address,
+          status: 'PENDING'
+        }
+      });
+
+      // Create transaction log
+      await tx.transactions.create({
+        data: {
+          user_id: userId,
+          type: 'WITHDRAWAL',
+          amount: amount,
+          balance_before: user.balance,
+          balance_after: Number(user.balance) - Number(amount),
+          reference_id: withdrawal.id,
+          description: `Withdrawal request via ${network}`
+        }
+      });
+    });
+
+    res.json({ success: true, message: 'Withdrawal request submitted successfully' });
+  } catch (error) {
+    console.error('Withdrawal error:', error);
+    res.status(500).json({ success: false, message: 'Failed to process withdrawal request' });
+  }
+});
+
 export default router;
 
