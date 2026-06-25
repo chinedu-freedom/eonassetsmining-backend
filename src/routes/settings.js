@@ -16,6 +16,7 @@ router.get('/', async (req, res) => {
         whatsapp_support: true,
         telegram_community: true,
         telegram_group: true,
+        whatsapp_group: true,
         deposit_notice: true,
         withdrawal_notice: true,
         min_withdrawal: true,

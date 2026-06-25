@@ -2,8 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/index.js';
+import { initCron } from './cron.js';
 
 dotenv.config();
+
+// Initialize automated tasks
+initCron();
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -16,7 +20,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/api', apiRoutes);
 
 app.get('/', (req, res) => {
-  res.json({ message: 'EonAssetsMining Backend is running (JavaScript)!' });
+  res.json({ message: 'PolychainappMining Backend is running (JavaScript)!' });
 });
 
 app.listen(port, () => {

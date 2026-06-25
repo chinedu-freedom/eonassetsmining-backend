@@ -1,5 +1,5 @@
 {
-  "name": "eonassetsmining-backend",
+  "name": "polychainapp-backend",
   "version": "1.0.0",
   "description": "Backend API",
   "main": "src/main.js",

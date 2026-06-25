@@ -528,6 +528,7 @@ model settings {
   whatsapp_support         String?
   telegram_community       String?
   telegram_group           String?
+  whatsapp_group           String?
   
   // Notices
   deposit_notice           String?
@@ -552,6 +553,7 @@ model settings {
   level1_commission        Decimal  @default(0) @db.Decimal(5, 2)
   level2_commission        Decimal  @default(0) @db.Decimal(5, 2)
   level3_commission        Decimal  @default(0) @db.Decimal(5, 2)
+  level4_commission        Decimal  @default(0) @db.Decimal(5, 2)
   
   // Features
   live_market_enabled      Boolean  @default(true)

@@ -14,7 +14,7 @@ export function emailTemplate(content) {
               <!-- Header -->
               <tr>
                 <td style="background-color:#2563eb; padding:30px 40px; text-align:center;">
-                  <h1 style="color:#ffffff; margin:0; font-size:28px; letter-spacing:1px;">EonAssets</h1>
+                  <h1 style="color:#ffffff; margin:0; font-size:28px; letter-spacing:1px;">Polychainapp</h1>
                 </td>
               </tr>
               <!-- Body -->
@@ -27,8 +27,8 @@ export function emailTemplate(content) {
               <tr>
                 <td style="background-color:#f1f5f9; padding:24px 40px; text-align:center;">
                   <p style="margin:0; color:#64748b; font-size:13px; line-height:1.6;">
-                    © ${new Date().getFullYear()} EonAssets. All rights reserved.<br>
-                    You received this email because you are registered on EonAssets.
+                    © ${new Date().getFullYear()} Polychainapp. All rights reserved.<br>
+                    You received this email because you are registered on Polychainapp.
                   </p>
                 </td>
               </tr>

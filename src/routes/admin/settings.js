@@ -73,8 +73,8 @@ router.get('/platform', async (req, res) => {
     if (!settings) {
       settings = await prisma.settings.create({
         data: {
-          site_name: "Eon Assets Mining",
-          site_title: "Eon Assets",
+          site_name: "Polychainapp",
+          site_title: "Polychainapp",
           currency_name: "USD",
           currency_symbol: "$",
           timezone: "UTC",

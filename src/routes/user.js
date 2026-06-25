@@ -75,12 +75,14 @@ router.get('/me', authenticate, async (req, res) => {
         full_name: user.full_name,
         username: user.username,
         phone_number: user.phone_number,
+        profile_image: user.profile_image,
         balance: user.balance,
         gift_balance: user.gift_balance,
         country: user.country,
         language: user.language,
         referral_code: user.referral_code,
         has_withdrawal_pin: !!user.withdrawal_pin,
+        email_verified: user.email_verified,
         created_at: user.created_at,
         statistics: {
           total_deposit: depositsAggr._sum.amount || 0,
@@ -92,6 +94,27 @@ router.get('/me', authenticate, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch user profile' });
+  }
+});
+
+// Update profile image
+router.put('/profile-image', authenticate, async (req, res) => {
+  try {
+    const { profile_image } = req.body;
+    
+    if (!profile_image) {
+      return res.status(400).json({ success: false, error: 'No image provided' });
+    }
+
+    await prisma.users.update({
+      where: { id: req.user.id },
+      data: { profile_image }
+    });
+
+    res.json({ success: true, message: 'Profile image updated successfully' });
+  } catch (error) {
+    console.error('Profile image update error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update profile image' });
   }
 });
 
@@ -593,11 +616,12 @@ router.get('/team', authenticate, async (req, res) => {
     const l1Comm = parseFloat(settings?.level1_commission || 0);
     const l2Comm = parseFloat(settings?.level2_commission || 0);
     const l3Comm = parseFloat(settings?.level3_commission || 0);
+    const l4Comm = parseFloat(settings?.level4_commission || 0);
 
     // Get Level 1 Users
     const level1Users = await prisma.users.findMany({
       where: { referred_by: userId },
-      include: { investments: true }
+      include: { investments: true, deposits: true }
     });
     const l1Ids = level1Users.map(u => u.id);
 
@@ -606,7 +630,7 @@ router.get('/team', authenticate, async (req, res) => {
     if (l1Ids.length > 0) {
       level2Users = await prisma.users.findMany({
         where: { referred_by: { in: l1Ids } },
-        include: { investments: true }
+        include: { investments: true, deposits: true }
       });
     }
     const l2Ids = level2Users.map(u => u.id);
@@ -616,7 +640,17 @@ router.get('/team', authenticate, async (req, res) => {
     if (l2Ids.length > 0) {
       level3Users = await prisma.users.findMany({
         where: { referred_by: { in: l2Ids } },
-        include: { investments: true }
+        include: { investments: true, deposits: true }
+      });
+    }
+    const l3Ids = level3Users.map(u => u.id);
+
+    // Get Level 4 Users
+    let level4Users = [];
+    if (l3Ids.length > 0) {
+      level4Users = await prisma.users.findMany({
+        where: { referred_by: { in: l3Ids } },
+        include: { investments: true, deposits: true }
       });
     }
     
@@ -624,6 +658,18 @@ router.get('/team', authenticate, async (req, res) => {
     const l1Valid = level1Users.filter(u => u.investments.length > 0).length;
     const l2Valid = level2Users.filter(u => u.investments.length > 0).length;
     const l3Valid = level3Users.filter(u => u.investments.length > 0).length;
+    const l4Valid = level4Users.filter(u => u.investments.length > 0).length;
+
+    // Calculate Total Deposits per level
+    const calcDeposits = (users) => users.reduce((acc, user) => {
+      const userDeposits = user.deposits?.filter(d => d.status === 'approved').reduce((sum, d) => sum + parseFloat(d.amount), 0) || 0;
+      return acc + userDeposits;
+    }, 0);
+
+    const l1Deposits = calcDeposits(level1Users);
+    const l2Deposits = calcDeposits(level2Users);
+    const l3Deposits = calcDeposits(level3Users);
+    const l4Deposits = calcDeposits(level4Users);
 
     // Get Referral Commissions
     const commissions = await prisma.referral_commissions.findMany({
@@ -634,12 +680,13 @@ router.get('/team', authenticate, async (req, res) => {
     const l1Earnings = commissions.filter(c => c.level === 1).reduce((acc, c) => acc + parseFloat(c.amount), 0);
     const l2Earnings = commissions.filter(c => c.level === 2).reduce((acc, c) => acc + parseFloat(c.amount), 0);
     const l3Earnings = commissions.filter(c => c.level === 3).reduce((acc, c) => acc + parseFloat(c.amount), 0);
+    const l4Earnings = commissions.filter(c => c.level === 4).reduce((acc, c) => acc + parseFloat(c.amount), 0);
 
     // Get Today's metrics
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const allTeamMembers = [...level1Users, ...level2Users, ...level3Users];
+    const allTeamMembers = [...level1Users, ...level2Users, ...level3Users, ...level4Users];
     const newMembersToday = allTeamMembers.filter(u => new Date(u.created_at) >= today).length;
     
     const newEarningsToday = commissions
@@ -660,21 +707,32 @@ router.get('/team', authenticate, async (req, res) => {
             total_members: level1Users.length,
             valid_members: l1Valid,
             commission_rate: l1Comm,
-            total_earnings: l1Earnings
+            total_earnings: l1Earnings,
+            total_deposits: l1Deposits
           },
           {
             level: 2,
             total_members: level2Users.length,
             valid_members: l2Valid,
             commission_rate: l2Comm,
-            total_earnings: l2Earnings
+            total_earnings: l2Earnings,
+            total_deposits: l2Deposits
           },
           {
             level: 3,
             total_members: level3Users.length,
             valid_members: l3Valid,
             commission_rate: l3Comm,
-            total_earnings: l3Earnings
+            total_earnings: l3Earnings,
+            total_deposits: l3Deposits
+          },
+          {
+            level: 4,
+            total_members: level4Users.length,
+            valid_members: l4Valid,
+            commission_rate: l4Comm,
+            total_earnings: l4Earnings,
+            total_deposits: l4Deposits
           }
         ]
       }
@@ -686,7 +744,7 @@ router.get('/team', authenticate, async (req, res) => {
   }
 });
 
-// Get User Team List By Level
+    // Get User Team List By Level
 router.get('/team/list', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -697,7 +755,7 @@ router.get('/team/list', authenticate, async (req, res) => {
     // Get Level 1
     const level1Users = await prisma.users.findMany({
       where: { referred_by: userId },
-      include: { investments: true }
+      include: { investments: true, deposits: true }
     });
 
     if (level === 1) {
@@ -708,7 +766,7 @@ router.get('/team/list', authenticate, async (req, res) => {
       if (level === 2 && l1Ids.length > 0) {
         targetUsers = await prisma.users.findMany({
           where: { referred_by: { in: l1Ids } },
-          include: { investments: true }
+          include: { investments: true, deposits: true }
         });
       } else if (level === 3 && l1Ids.length > 0) {
         const level2Users = await prisma.users.findMany({
@@ -718,8 +776,25 @@ router.get('/team/list', authenticate, async (req, res) => {
         if (l2Ids.length > 0) {
           targetUsers = await prisma.users.findMany({
             where: { referred_by: { in: l2Ids } },
-            include: { investments: true }
+            include: { investments: true, deposits: true }
           });
+        }
+      } else if (level === 4 && l1Ids.length > 0) {
+        const level2Users = await prisma.users.findMany({
+          where: { referred_by: { in: l1Ids } }
+        });
+        const l2Ids = level2Users.map(u => u.id);
+        if (l2Ids.length > 0) {
+          const level3Users = await prisma.users.findMany({
+            where: { referred_by: { in: l2Ids } }
+          });
+          const l3Ids = level3Users.map(u => u.id);
+          if (l3Ids.length > 0) {
+            targetUsers = await prisma.users.findMany({
+              where: { referred_by: { in: l3Ids } },
+              include: { investments: true, deposits: true }
+            });
+          }
         }
       }
     }
@@ -727,13 +802,15 @@ router.get('/team/list', authenticate, async (req, res) => {
     // Map the users to include stats
     const formattedList = targetUsers.map(u => {
       const totalInvested = u.investments ? u.investments.reduce((acc, inv) => acc + parseFloat(inv.amount), 0) : 0;
+      const totalDeposited = u.deposits ? u.deposits.filter(d => d.status === 'approved').reduce((acc, d) => acc + parseFloat(d.amount), 0) : 0;
       return {
         id: u.id,
         username: u.username || u.full_name || 'Anonymous',
         joined_at: u.created_at,
         status: u.is_active ? 'Active' : 'Inactive',
         balance: parseFloat(u.balance || 0),
-        invested_amount: totalInvested
+        invested_amount: totalInvested,
+        deposited_amount: totalDeposited
       };
     });
 
@@ -1217,7 +1294,7 @@ router.post('/deposit', authenticate, async (req, res) => {
     if (oxapayNetwork === 'bitcoin') oxapayNetwork = 'btc';
     if (oxapayNetwork === 'litecoin') oxapayNetwork = 'ltc';
 
-    const BACKEND_URL = process.env.BACKEND_URL || "https://api.eonassets.com"; // Adjust if needed
+    const BACKEND_URL = process.env.BACKEND_URL || "https://api.polychainapp.com"; // Adjust if needed
     
     // Using standard invoice request to get a payLink for redirection
     const invoiceRes = await fetch("https://api.oxapay.com/merchants/request", {
@@ -1231,7 +1308,7 @@ router.post('/deposit', authenticate, async (req, res) => {
         orderId: deposit.id, // We use the deposit ID as orderId
         feePaidByPayer: 0,
         callbackUrl: `${BACKEND_URL}/users/oxapay-webhook`,
-        description: `EonAssets Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
+        description: `Polychainapp Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
       }),
     });
     
@@ -1406,7 +1483,11 @@ router.post('/withdraw', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Incorrect withdrawal password' });
     }
 
-    if (Number(user.balance) < Number(amount)) {
+    const mainBal = Number(user.balance || 0);
+    const giftBal = Number(user.gift_balance || 0);
+    const totalBal = mainBal + giftBal;
+
+    if (totalBal < Number(amount)) {
       return res.status(400).json({ success: false, message: 'Insufficient balance' });
     }
 
@@ -1414,10 +1495,24 @@ router.post('/withdraw', authenticate, async (req, res) => {
     const netAmount = Number(amount) - fees;
 
     await prisma.$transaction(async (tx) => {
-      // Deduct balance
+      let deductMain = 0;
+      let deductGift = 0;
+      const numAmount = Number(amount);
+
+      if (mainBal >= numAmount) {
+        deductMain = numAmount;
+      } else {
+        deductMain = mainBal;
+        deductGift = numAmount - mainBal;
+      }
+
+      // Deduct balances
       await tx.users.update({
         where: { id: userId },
-        data: { balance: { decrement: amount } }
+        data: { 
+          balance: { decrement: deductMain },
+          gift_balance: { decrement: deductGift }
+        }
       });
 
       // Create withdrawal record
@@ -1439,8 +1534,8 @@ router.post('/withdraw', authenticate, async (req, res) => {
           user_id: userId,
           type: 'WITHDRAWAL',
           amount: amount,
-          balance_before: user.balance,
-          balance_after: Number(user.balance) - Number(amount),
+          balance_before: totalBal,
+          balance_after: totalBal - numAmount,
           reference_id: withdrawal.id,
           description: `Withdrawal request via ${network}`
         }

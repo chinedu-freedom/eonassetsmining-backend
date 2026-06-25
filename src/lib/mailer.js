@@ -3,7 +3,7 @@ import { sendEmail } from "./zohoMailer.js";
 
 // Verification Email
 export async function sendVerificationEmail({ email, name, code }) {
-  const subject = "Verify Your Email - EonAssets";
+  const subject = "Verify Your Email - Polychainapp";
 
   const content = `
     <div style="text-align:center; padding:10px 0;">
