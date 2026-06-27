@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { sendDepositNotificationEmail, sendWithdrawalNotificationEmail } from '../../lib/mailer.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -56,6 +57,20 @@ router.put('/deposits/:id/status', async (req, res) => {
         where: { id: deposit.id },
         data: { status: 'REJECTED', approved_by: req.user.id, approved_at: new Date() }
       });
+    }
+
+    // Send email notification to user
+    try {
+      await sendDepositNotificationEmail({
+        email: deposit.user.email,
+        name: deposit.user.full_name || deposit.user.username || 'User',
+        crypto: deposit.cryptocurrency,
+        amount: Number(deposit.amount),
+        status: status.toLowerCase(),
+        date: new Date()
+      });
+    } catch (err) {
+      console.error('Failed to send deposit status email:', err);
     }
 
     res.json(updatedDeposit);
@@ -116,6 +131,21 @@ router.put('/withdrawals/:id/status', async (req, res) => {
         where: { id: withdrawal.id },
         data: { status, processed_by: req.user.id, processed_at: new Date() }
       });
+    }
+
+    // Send email notification to user
+    try {
+      await sendWithdrawalNotificationEmail({
+        email: withdrawal.user.email,
+        name: withdrawal.user.full_name || withdrawal.user.username || 'User',
+        crypto: withdrawal.withdrawal_method,
+        amount: Number(withdrawal.amount),
+        walletAddress: withdrawal.wallet_address,
+        status: status.toLowerCase(),
+        date: new Date()
+      });
+    } catch (err) {
+      console.error('Failed to send withdrawal status email:', err);
     }
 
     res.json(updatedWithdrawal);

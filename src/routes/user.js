@@ -2,7 +2,12 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth.js';
 import bcrypt from 'bcrypt';
-import { sendVerificationEmail } from '../lib/mailer.js';
+import { 
+  sendVerificationEmail,
+  sendDepositNotificationEmail,
+  sendWithdrawalNotificationEmail,
+  sendPasswordChangeConfirmationEmail 
+} from '../lib/mailer.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -879,6 +884,12 @@ router.put('/me/password', authenticate, async (req, res) => {
       data: { password_hash: hash }
     });
     
+    try {
+      await sendPasswordChangeConfirmationEmail(req.user.email, req.user.full_name || req.user.username || 'User');
+    } catch (err) {
+      console.error('Failed to send password change confirmation email:', err);
+    }
+    
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
     console.error('Update password error:', error);
@@ -1278,6 +1289,35 @@ router.post('/deposit', authenticate, async (req, res) => {
       }
     });
 
+    // Send deposit notification email
+    try {
+      await sendDepositNotificationEmail({
+        email: req.user.email,
+        name: req.user.full_name || req.user.username || 'User',
+        crypto: `${cryptoOption.symbol} (${cryptoOption.network})`,
+        amount: Number(amount),
+        status: 'pending',
+        date: new Date()
+      });
+      // Admin notification
+      const adminEmail = process.env.ZOHO_FROM_EMAIL;
+      if (adminEmail) {
+         await sendDepositNotificationEmail({
+           email: adminEmail,
+           name: 'Admin',
+           crypto: `${cryptoOption.symbol} (${cryptoOption.network})`,
+           amount: Number(amount),
+           status: 'pending',
+           date: new Date(),
+           isAdmin: true,
+           userName: req.user.full_name || req.user.username || 'User',
+           userEmail: req.user.email
+         });
+      }
+    } catch (err) {
+      console.error('Failed to send deposit email:', err);
+    }
+
     // Call OxaPay to create an invoice
     const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
     if (!OXAPAY_MERCHANT_KEY) {
@@ -1541,6 +1581,37 @@ router.post('/withdraw', authenticate, async (req, res) => {
         }
       });
     });
+
+    // Send withdrawal notification email
+    try {
+      await sendWithdrawalNotificationEmail({
+        email: req.user.email,
+        name: req.user.full_name || req.user.username || 'User',
+        crypto: method === 'crypto' ? network : method,
+        amount: Number(amount),
+        walletAddress: wallet_address,
+        status: 'pending',
+        date: new Date()
+      });
+      // Admin notification
+      const adminEmail = process.env.ZOHO_FROM_EMAIL;
+      if (adminEmail) {
+         await sendWithdrawalNotificationEmail({
+           email: adminEmail,
+           name: 'Admin',
+           crypto: method === 'crypto' ? network : method,
+           amount: Number(amount),
+           walletAddress: wallet_address,
+           status: 'pending',
+           date: new Date(),
+           isAdmin: true,
+           userName: req.user.full_name || req.user.username || 'User',
+           userEmail: req.user.email
+         });
+      }
+    } catch (err) {
+      console.error('Failed to send withdrawal email:', err);
+    }
 
     res.json({ success: true, message: 'Withdrawal request submitted successfully' });
   } catch (error) {

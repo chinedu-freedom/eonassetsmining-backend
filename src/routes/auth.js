@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendPasswordResetConfirmationEmail } from '../lib/mailer.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -58,6 +59,13 @@ router.post('/register', async (req, res) => {
     });
 
     const token = jwt.sign({ id: user.id, email: user.email, role: 'user' }, JWT_SECRET, { expiresIn: '24h' });
+
+    // Send Welcome Email
+    try {
+      await sendWelcomeEmail({ email: user.email, name: user.full_name });
+    } catch (err) {
+      console.error("Failed to send welcome email:", err);
+    }
 
     res.status(201).json({
       message: 'Registration successful',
@@ -162,6 +170,111 @@ router.post('/admin/login', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Admin login failed', details: error.message });
+  }
+});
+
+// Forgot Password
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    const user = await prisma.users.findUnique({ where: { email } });
+    if (!user) {
+      return res.json({ success: true, message: 'OTP sent successfully' });
+    }
+
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const expires_at = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+    await prisma.password_resets.updateMany({
+      where: { user_id: user.id, used: false },
+      data: { used: true }
+    });
+
+    await prisma.password_resets.create({
+      data: {
+        user_id: user.id,
+        token: otp,
+        expires_at
+      }
+    });
+
+    await sendPasswordResetEmail(user.email, user.full_name || 'User', otp);
+
+    res.json({ success: true, message: 'OTP sent successfully' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+// Verify OTP
+router.post('/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
+
+  try {
+    const user = await prisma.users.findUnique({ where: { email } });
+    if (!user) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
+    const reset = await prisma.password_resets.findFirst({
+      where: {
+        user_id: user.id,
+        token: otp,
+        used: false,
+        expires_at: { gt: new Date() }
+      }
+    });
+
+    if (!reset) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
+    res.json({ success: true, message: 'OTP verified' });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ error: 'Failed to verify OTP' });
+  }
+});
+
+// Reset Password
+router.post('/reset-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+  if (!email || !newPassword) return res.status(400).json({ error: 'Email and new password are required' });
+
+  try {
+    const user = await prisma.users.findUnique({ where: { email } });
+    if (!user) return res.status(400).json({ error: 'Invalid request' });
+
+    const reset = await prisma.password_resets.findFirst({
+      where: {
+        user_id: user.id,
+        used: false,
+        expires_at: { gt: new Date() }
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    if (!reset) return res.status(400).json({ error: 'No active password reset session found' });
+
+    const password_hash = await bcrypt.hash(newPassword, 10);
+
+    await prisma.$transaction([
+      prisma.users.update({
+        where: { id: user.id },
+        data: { password_hash }
+      }),
+      prisma.password_resets.update({
+        where: { id: reset.id },
+        data: { used: true }
+      })
+    ]);
+
+    await sendPasswordResetConfirmationEmail(user.email, user.full_name || 'User');
+
+    res.json({ success: true, message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 
