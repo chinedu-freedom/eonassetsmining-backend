@@ -212,6 +212,31 @@ export async function sendPasswordResetConfirmationEmail(email, name) {
 export async function sendDepositNotificationEmail({ email, name, crypto, amount, status, date, isAdmin = false, userName, userEmail }) {
   const siteName = await getSiteName();
   const symbol = await getCurrencySymbol();
+
+  // If sending to user, check if this specific status notification is enabled
+  if (!isAdmin) {
+    try {
+      const emailSettings = await prisma.email_settings.findFirst();
+      if (emailSettings) {
+        const lowerStatus = (status || "").toLowerCase();
+        if ((lowerStatus === "pending" || lowerStatus === "processing") && !emailSettings.notify_deposit_processing) {
+          console.log(`Skipping deposit processing email to ${email} as disabled in settings.`);
+          return;
+        }
+        if ((lowerStatus === "approved" || lowerStatus === "success") && !emailSettings.notify_deposit_approved) {
+          console.log(`Skipping deposit approved email to ${email} as disabled in settings.`);
+          return;
+        }
+        if ((lowerStatus === "rejected" || lowerStatus === "failed") && !emailSettings.notify_deposit_rejected) {
+          console.log(`Skipping deposit rejected email to ${email} as disabled in settings.`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Error checking email settings for deposit notification:", err);
+    }
+  }
+
   const subject = isAdmin ? "New Deposit Request - Action Required" : `Deposit Request Received - ${siteName}`;
   
   const heading = isAdmin 
@@ -250,6 +275,31 @@ export async function sendDepositNotificationEmail({ email, name, crypto, amount
 export async function sendWithdrawalNotificationEmail({ email, name, crypto, amount, walletAddress, status, date, isAdmin = false, userName, userEmail }) {
   const siteName = await getSiteName();
   const symbol = await getCurrencySymbol();
+
+  // If sending to user, check if this specific status notification is enabled
+  if (!isAdmin) {
+    try {
+      const emailSettings = await prisma.email_settings.findFirst();
+      if (emailSettings) {
+        const lowerStatus = (status || "").toLowerCase();
+        if ((lowerStatus === "pending" || lowerStatus === "processing") && !emailSettings.notify_withdrawal_processing) {
+          console.log(`Skipping withdrawal processing email to ${email} as disabled in settings.`);
+          return;
+        }
+        if ((lowerStatus === "approved" || lowerStatus === "success") && !emailSettings.notify_withdrawal_approved) {
+          console.log(`Skipping withdrawal approved email to ${email} as disabled in settings.`);
+          return;
+        }
+        if ((lowerStatus === "rejected" || lowerStatus === "failed") && !emailSettings.notify_withdrawal_rejected) {
+          console.log(`Skipping withdrawal rejected email to ${email} as disabled in settings.`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Error checking email settings for withdrawal notification:", err);
+    }
+  }
+
   const subject = isAdmin ? "New Withdrawal Request - Action Required" : `Withdrawal Request Received - ${siteName}`;
   const message = isAdmin
     ? `<p  style="font-size: 15px; color: #333;">A new withdrawal has been submitted by <strong>${userName}</strong>  <a href="mailto:${userEmail}">${userEmail}</a>
