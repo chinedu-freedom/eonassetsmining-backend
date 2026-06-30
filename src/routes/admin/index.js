@@ -16,6 +16,7 @@ import liveMarketRoutes from './live-market.js';
 import countriesRoutes from './countries.js';
 import languagesRoutes from './languages.js';
 import aboutRoutes from './about.js';
+import profileRoutes from './profile.js';
 
 const router = Router();
 
@@ -37,5 +38,6 @@ router.use('/live-market', liveMarketRoutes);
 router.use('/countries', countriesRoutes);
 router.use('/languages', languagesRoutes);
 router.use('/about', aboutRoutes);
+router.use('/profile', profileRoutes);
 
 export default router;

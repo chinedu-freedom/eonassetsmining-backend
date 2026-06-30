@@ -39,10 +39,10 @@ async function main() {
   // 3. Create a default Admin
   const adminPassword = await bcrypt.hash('admin123', 10);
   const admin = await prisma.admins.upsert({
-    where: { email: 'admin@polychainapp.com' },
+    where: { email: 'admin@eonassetsmining.com' },
     update: {},
     create: {
-      email: 'admin@polychainapp.com',
+      email: 'admin@eonassetsmining.com',
       password_hash: adminPassword,
       role: 'superadmin',
     },

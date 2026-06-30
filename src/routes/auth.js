@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { sendWelcomeEmail, sendPasswordResetEmail, sendPasswordResetConfirmationEmail } from '../lib/mailer.js';
+import { logActivity } from '../lib/logger.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -45,6 +46,14 @@ router.post('/register', async (req, res) => {
       }
     }
 
+    const settings = await prisma.settings.findFirst();
+    const regBonus = settings ? Number(settings.registration_bonus || 0) : 0;
+    const bonusDest = settings?.welcome_bonus_destination || 'deposit';
+
+    const clientIp = (req.headers['x-forwarded-for'] 
+      ? req.headers['x-forwarded-for'].split(',')[0].trim() 
+      : req.socket.remoteAddress || req.ip) || 'Unknown';
+
     const user = await prisma.users.create({
       data: {
         email,
@@ -54,9 +63,28 @@ router.post('/register', async (req, res) => {
         country_id,
         language_id,
         referral_code,
-        referred_by: referred_by_id
+        referred_by: referred_by_id,
+        last_login: new Date(),
+        last_ip: clientIp,
+        balance: bonusDest === 'deposit' ? regBonus : 0,
+        gift_balance: bonusDest === 'gift' ? regBonus : 0
       }
     });
+
+    if (regBonus > 0) {
+      await prisma.transactions.create({
+        data: {
+          user_id: user.id,
+          type: 'REGISTRATION_BONUS',
+          amount: regBonus,
+          balance_before: 0,
+          balance_after: regBonus,
+          description: 'Registration Welcome Bonus'
+        }
+      });
+    }
+
+    await logActivity(user.id, 'user registered', req);
 
     const token = jwt.sign({ id: user.id, email: user.email, role: 'user' }, JWT_SECRET, { expiresIn: '24h' });
 
@@ -123,6 +151,20 @@ router.post('/login', async (req, res) => {
     if (!isValid) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+
+    const clientIp = (req.headers['x-forwarded-for'] 
+      ? req.headers['x-forwarded-for'].split(',')[0].trim() 
+      : req.socket.remoteAddress || req.ip) || 'Unknown';
+
+    await prisma.users.update({
+      where: { id: user.id },
+      data: {
+        last_login: new Date(),
+        last_ip: clientIp
+      }
+    });
+
+    await logActivity(user.id, 'user login', req);
 
     const token = jwt.sign({ id: user.id, email: user.email, role: 'user' }, JWT_SECRET, { expiresIn: '24h' });
 
@@ -268,6 +310,8 @@ router.post('/reset-password', async (req, res) => {
         data: { used: true }
       })
     ]);
+
+    await logActivity(user.id, 'password reset', req);
 
     await sendPasswordResetConfirmationEmail(user.email, user.full_name || 'User');
 

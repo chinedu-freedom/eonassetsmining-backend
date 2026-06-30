@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { logActivity } from '../../lib/logger.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -51,6 +52,12 @@ router.put('/:id', async (req, res) => {
       where: { id: req.params.id },
       data: data
     });
+
+    if (data.is_active !== undefined) {
+      const action = data.is_active ? 'user unbanned' : 'user banned';
+      await logActivity(user.id, action, req);
+    }
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update user' });
@@ -83,6 +90,8 @@ router.post('/:id/credit', async (req, res) => {
         }
       })
     ]);
+
+    await logActivity(user.id, 'admin credit', req, { amount, reason, balance_type });
 
     res.json(updatedUser[0]);
   } catch (error) {
@@ -119,6 +128,8 @@ router.post('/:id/debit', async (req, res) => {
         }
       })
     ]);
+
+    await logActivity(user.id, 'admin debit', req, { amount, reason, balance_type });
 
     res.json(updatedUser[0]);
   } catch (error) {

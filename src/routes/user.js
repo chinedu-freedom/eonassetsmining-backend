@@ -8,6 +8,7 @@ import {
   sendWithdrawalNotificationEmail,
   sendPasswordChangeConfirmationEmail 
 } from '../lib/mailer.js';
+import { logActivity } from '../lib/logger.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -79,7 +80,6 @@ router.get('/me', authenticate, async (req, res) => {
         email: user.email,
         full_name: user.full_name,
         username: user.username,
-        phone_number: user.phone_number,
         profile_image: user.profile_image,
         balance: user.balance,
         gift_balance: user.gift_balance,
@@ -352,9 +352,14 @@ router.post('/checkin', authenticate, async (req, res) => {
       });
     });
 
+    await logActivity(userId, 'daily check in', req, { day: claimDay, amount: rewardConfig.reward_amount });
+
+    const settings = await prisma.settings.findFirst();
+    const symbol = settings?.currency_symbol || '$';
+
     res.json({
       success: true,
-      message: `Successfully claimed $${rewardConfig.reward_amount} for Day ${claimDay}`,
+      message: `Successfully claimed ${symbol}${rewardConfig.reward_amount} for Day ${claimDay}`,
       amount: rewardConfig.reward_amount,
       day: claimDay
     });
@@ -605,6 +610,8 @@ router.post('/treasure/claim', authenticate, async (req, res) => {
       });
     });
 
+    await logActivity(userId, 'bonus claimed', req, { code: giftCode.code, amount: giftCode.reward_amount });
+
     res.json({ success: true, message: 'Gift code claimed successfully!', reward_amount: giftCode.reward_amount });
   } catch (error) {
     console.error('Claim gift code error:', error);
@@ -833,7 +840,7 @@ router.get('/team/list', authenticate, async (req, res) => {
 // Update Profile
 router.put('/me/profile', authenticate, async (req, res) => {
   try {
-    const { full_name, username, phone_number } = req.body;
+    const { full_name, username } = req.body;
     
     if (username) {
       const existing = await prisma.users.findFirst({ where: { username, id: { not: req.user.id } } });
@@ -842,9 +849,11 @@ router.put('/me/profile', authenticate, async (req, res) => {
 
     const updatedUser = await prisma.users.update({
       where: { id: req.user.id },
-      data: { full_name, username, phone_number }
+      data: { full_name, username }
     });
     
+    await logActivity(req.user.id, 'profile updated', req, { updatedFields: { full_name, username } });
+
     res.json({ success: true, user: updatedUser });
   } catch (error) {
     console.error('Update profile error:', error);
@@ -890,6 +899,8 @@ router.put('/me/password', authenticate, async (req, res) => {
       console.error('Failed to send password change confirmation email:', err);
     }
     
+    await logActivity(req.user.id, 'profile updated', req, { description: 'Updated password' });
+
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
     console.error('Update password error:', error);
@@ -1237,6 +1248,8 @@ router.post('/spin', authenticate, async (req, res) => {
       });
     });
 
+    await logActivity(userId, 'spin wheel', req, { spinType, rewardAmount, prizeName: selectedPrize.name });
+
     res.json({
       success: true,
       data: {
@@ -1274,9 +1287,10 @@ router.post('/deposit', authenticate, async (req, res) => {
     const settings = await prisma.settings.findFirst();
     const minDep = Number(settings?.min_deposit || 10);
     const maxDep = Number(settings?.max_deposit || 100000);
+    const symbol = settings?.currency_symbol || '$';
 
     if (Number(amount) < minDep || Number(amount) > maxDep) {
-      return res.status(400).json({ success: false, message: `Amount must be between $${minDep} and $${maxDep}` });
+      return res.status(400).json({ success: false, message: `Amount must be between ${symbol}${minDep} and ${symbol}${maxDep}` });
     }
 
     // Create a PENDING deposit
@@ -1288,6 +1302,8 @@ router.post('/deposit', authenticate, async (req, res) => {
         status: 'PENDING'
       }
     });
+
+    await logActivity(userId, 'deposit initiated', req, { amount: deposit.amount, cryptocurrency: deposit.cryptocurrency });
 
     // Send deposit notification email
     try {
@@ -1348,7 +1364,7 @@ router.post('/deposit', authenticate, async (req, res) => {
         orderId: deposit.id, // We use the deposit ID as orderId
         feePaidByPayer: 0,
         callbackUrl: `${BACKEND_URL}/users/oxapay-webhook`,
-        description: `Polychainapp Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
+        description: `${settings?.site_name || "Eon Assets Mining"} Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
       }),
     });
     
@@ -1475,6 +1491,8 @@ router.post('/oxapay-webhook', async (req, res) => {
         });
       });
 
+      await logActivity(deposit.user_id, 'deposit completed', req, { amount: creditAmount });
+
       console.log(`OXAPAY_WEBHOOK_SUCCESS: Credited $${creditAmount} to user ${deposit.user_id}`);
     } catch (err) {
       console.error("OXAPAY_WEBHOOK_TRANSACTION_ERROR:", err);
@@ -1498,13 +1516,14 @@ router.post('/withdraw', authenticate, async (req, res) => {
     const minAmount = Number(settings?.min_withdrawal || 5);
     const maxAmount = Number(settings?.max_withdrawal || 10000);
     const feeRate = Number(settings?.withdrawal_charge || 2) / 100;
+    const symbol = settings?.currency_symbol || '$';
 
     if (amount < minAmount) {
-      return res.status(400).json({ success: false, message: `Minimum withdrawal amount is $${minAmount}` });
+      return res.status(400).json({ success: false, message: `Minimum withdrawal amount is ${symbol}${minAmount}` });
     }
 
     if (amount > maxAmount) {
-      return res.status(400).json({ success: false, message: `Maximum withdrawal amount is $${maxAmount}` });
+      return res.status(400).json({ success: false, message: `Maximum withdrawal amount is ${symbol}${maxAmount}` });
     }
 
     const user = await prisma.users.findUnique({ where: { id: userId } });
@@ -1612,6 +1631,8 @@ router.post('/withdraw', authenticate, async (req, res) => {
     } catch (err) {
       console.error('Failed to send withdrawal email:', err);
     }
+
+    await logActivity(userId, 'withdrawal requested', req, { amount: amount, network: network, wallet_address: wallet_address });
 
     res.json({ success: true, message: 'Withdrawal request submitted successfully' });
   } catch (error) {

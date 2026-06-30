@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 
 import { authenticate } from '../middleware/auth.js';
+import { logActivity } from '../lib/logger.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -154,6 +155,8 @@ router.post('/invest', authenticate, async (req, res) => {
         }
       }
     });
+
+    await logActivity(userId, 'package purchase', req, { planName: plan.name, amount: investAmount });
 
     res.json({ success: true, message: 'Investment created successfully' });
   } catch (error) {

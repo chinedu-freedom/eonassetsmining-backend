@@ -1,9 +1,31 @@
+import { PrismaClient } from "@prisma/client";
 import { emailTemplate } from "./template.js";
 import { sendEmail } from "./zohoMailer.js";
 
+const prisma = new PrismaClient();
+
+async function getSiteName() {
+  try {
+    const settings = await prisma.settings.findFirst();
+    return settings?.site_name || "Eon Assets Mining";
+  } catch (error) {
+    return "Eon Assets Mining";
+  }
+}
+
+async function getCurrencySymbol() {
+  try {
+    const settings = await prisma.settings.findFirst();
+    return settings?.currency_symbol || "$";
+  } catch (error) {
+    return "$";
+  }
+}
+
 // Verification Email
 export async function sendVerificationEmail({ email, name, code }) {
-  const subject = "Verify Your Email - Polychainapp";
+  const siteName = await getSiteName();
+  const subject = `Verify Your Email - ${siteName}`;
 
   const content = `
     <div style="text-align:center; padding:10px 0;">
@@ -26,11 +48,12 @@ export async function sendVerificationEmail({ email, name, code }) {
     </div>
   `;
 
-  return await sendEmail({ to: email, subject, html: emailTemplate(content) });
+  return await sendEmail({ to: email, subject, html: emailTemplate(content, siteName) });
 }
 
 export async function sendWelcomeEmail({ email, name }) {
-  const subject = "Welcome to Polychainapp - Let's Start Growing!";
+  const siteName = await getSiteName();
+  const subject = `Welcome to ${siteName} - Let's Start Growing!`;
 
   const content = `
     <div style="text-align:center; padding:10px 0;">
@@ -39,7 +62,7 @@ export async function sendWelcomeEmail({ email, name }) {
       </h2>
 
       <p style="color:#4b5563; font-size:16px; line-height:1.7; margin-bottom: 25px;">
-        We're thrilled to have you join <strong>Polychainapp</strong>. You've just taken a major step toward optimizing your digital infrastructure and maximizing your computing power potential.
+        We're thrilled to have you join <strong>${siteName}</strong>. You've just taken a major step toward optimizing your digital infrastructure and maximizing your computing power potential.
       </p>
 
       <div style="background: #f5f3ff; border-radius: 16px; padding: 25px; margin: 30px 0; border: 1px solid #ede9fe; text-align: left;">
@@ -57,7 +80,7 @@ export async function sendWelcomeEmail({ email, name }) {
       
       <p style="margin-top: 30px; font-weight: 700; color: #4c1d95;">
         Happy Investing,<br>
-        The Polychainapp Team
+        The ${siteName} Team
       </p>
     </div>
   `;
@@ -65,19 +88,20 @@ export async function sendWelcomeEmail({ email, name }) {
   return await sendEmail({
     to: email,
     subject,
-    html: emailTemplate(content)
+    html: emailTemplate(content, siteName)
   });
 }
 
 export async function sendPasswordResetEmail(email, name, otp) {
-  const subject = "Your OTP Code - Polychainapp";
+  const siteName = await getSiteName();
+  const subject = `Your OTP Code - ${siteName}`;
 
   const content = `
     <p>Hi <strong>${name}</strong>,</p>
 
     <p>
       You recently requested to reset your password for your
-      <strong>Polychainapp</strong> account. Please use the OTP code below
+      <strong>${siteName}</strong> account. Please use the OTP code below
       to complete the process:
     </p>
 
@@ -111,12 +135,13 @@ export async function sendPasswordResetEmail(email, name, otp) {
   return await sendEmail({
     to: email,
     subject,
-    html: emailTemplate(content),
+    html: emailTemplate(content, siteName),
   });
 }
 
 export async function sendPasswordChangeConfirmationEmail(email, name) {
-  const subject = "Your Password Has Been Updated - Polychainapp";
+  const siteName = await getSiteName();
+  const subject = `Your Password Has Been Updated - ${siteName}`;
 
   const content = `
     <div style="padding:30px 0; text-align:center;">
@@ -130,7 +155,7 @@ export async function sendPasswordChangeConfirmationEmail(email, name) {
 
       <p style="font-size:15px; color:#555; line-height:1.6; margin-bottom:24px;">
         If you did not perform this action, please contact our support team
-        <a href="mailto:support@polychainapp.com"
+        <a href="mailto:support@${siteName.toLowerCase().replace(/\s+/g, "")}.com"
            style="color:#6d28d9; font-weight:bold; text-decoration:none;">
           immediately
         </a>.
@@ -145,12 +170,13 @@ export async function sendPasswordChangeConfirmationEmail(email, name) {
   return await sendEmail({
     to: email,
     subject,
-    html: emailTemplate(content),
+    html: emailTemplate(content, siteName),
   });
 }
 
 export async function sendPasswordResetConfirmationEmail(email, name) {
-  const subject = "Your Password Has Been Reset - Polychainapp";
+  const siteName = await getSiteName();
+  const subject = `Your Password Has Been Reset - ${siteName}`;
 
   const content = `
     <div style="padding:30px 0; text-align:center;">
@@ -164,7 +190,7 @@ export async function sendPasswordResetConfirmationEmail(email, name) {
 
       <p style="font-size:15px; color:#555; line-height:1.6; margin-bottom:24px;">
         If you did not perform this action, please contact our support team
-        <a href="mailto:support@polychainapp.com"
+        <a href="mailto:support@${siteName.toLowerCase().replace(/\s+/g, "")}.com"
            style="color:#6d28d9; font-weight:bold; text-decoration:none;">
           immediately
         </a>.
@@ -179,12 +205,14 @@ export async function sendPasswordResetConfirmationEmail(email, name) {
   return await sendEmail({
     to: email,
     subject,
-    html: emailTemplate(content),
+    html: emailTemplate(content, siteName),
   });
 }
 
 export async function sendDepositNotificationEmail({ email, name, crypto, amount, status, date, isAdmin = false, userName, userEmail }) {
-  const subject = isAdmin ? "New Deposit Request - Action Required" : "Deposit Request Received - Polychainapp";
+  const siteName = await getSiteName();
+  const symbol = await getCurrencySymbol();
+  const subject = isAdmin ? "New Deposit Request - Action Required" : `Deposit Request Received - ${siteName}`;
   
   const heading = isAdmin 
     ? "" 
@@ -194,10 +222,10 @@ export async function sendDepositNotificationEmail({ email, name, crypto, amount
     ? `<p style="font-size: 15px; color: #333;">A new deposit has been submitted by <strong>${userName}</strong> || <a href="mailto:${userEmail}">${userEmail}</a> </p>
     <p style="font-size: 15px; color: #333;">Please review and verify the transaction in the admin dashboard.</p>`
     : `<p style="font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 12px;">
-        Your deposit request of <strong>$${amount}</strong> has been received successfully. You will be notified once your deposit has been confirmed on our end, and it will be automatically credited to your account.
+        Your deposit request of <strong>${symbol}${amount}</strong> has been received successfully. You will be notified once your deposit has been confirmed on our end, and it will be automatically credited to your account.
       </p>
       <p style="font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 24px;">
-        Thank you for choosing Polychainapp.
+        Thank you for choosing ${siteName}.
       </p>
     `;
  
@@ -211,20 +239,22 @@ export async function sendDepositNotificationEmail({ email, name, crypto, amount
     </div>
     <table style="width:100%; border-collapse: collapse; margin:20px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
       <tr style="background-color:#f0f4f8;"><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Crypto</td><td style="padding:12px; border:1px solid #e5e7eb;">${crypto}</td></tr>
-      <tr><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Amount (USD)</td><td style="padding:12px; border:1px solid #e5e7eb;">$${amount}</td></tr>
+      <tr><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Amount</td><td style="padding:12px; border:1px solid #e5e7eb;">${symbol}${amount}</td></tr>
       <tr style="background-color:#f0f4f8;"><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Status</td><td style="padding:12px; border:1px solid #e5e7eb; color: #6d28d9; font-weight: 700;">${status.charAt(0).toUpperCase() + status.slice(1)}</td></tr>
       <tr><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Date</td><td style="padding:12px; border:1px solid #e5e7eb;">${new Date(date).toLocaleString()}</td></tr>
     </table>
     `;
-  return await sendEmail({ to: email, subject, html: emailTemplate(content) });
+  return await sendEmail({ to: email, subject, html: emailTemplate(content, siteName) });
 }
 
 export async function sendWithdrawalNotificationEmail({ email, name, crypto, amount, walletAddress, status, date, isAdmin = false, userName, userEmail }) {
-  const subject = isAdmin ? "New Withdrawal Request - Action Required" : "Withdrawal Request Received - Polychainapp";
+  const siteName = await getSiteName();
+  const symbol = await getCurrencySymbol();
+  const subject = isAdmin ? "New Withdrawal Request - Action Required" : `Withdrawal Request Received - ${siteName}`;
   const message = isAdmin
     ? `<p  style="font-size: 15px; color: #333;">A new withdrawal has been submitted by <strong>${userName}</strong>  <a href="mailto:${userEmail}">${userEmail}</a>
     </p><p  style="font-size: 15px; color: #333;">Please review and process this request in the admin dashboard.</p>`
-    : `<p  style="font-size: 15px; color: #555;">Your <strong>${crypto}</strong> withdrawal request of <strong>$${amount}</strong> to wallet <strong>${walletAddress}</strong> is currently <strong>${status}</strong>.</p>
+    : `<p  style="font-size: 15px; color: #555;">Your <strong>${crypto}</strong> withdrawal request of <strong>${symbol}${amount}</strong> to wallet <strong>${walletAddress}</strong> is currently <strong>${status}</strong>.</p>
     <p style="font-size: 15px; color: #555;">
     Once our team reviews and processes your request, you will receive a confirmation email.
     </p>
@@ -238,11 +268,11 @@ export async function sendWithdrawalNotificationEmail({ email, name, crypto, amo
     ${message}
     <table style="width:100%; border-collapse: collapse; margin:20px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
       <tr style="background-color:#f0f4f8;"><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Crypto</td><td style="padding:12px; border:1px solid #e5e7eb;">${crypto}</td></tr>
-      <tr><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Amount (USD)</td><td style="padding:12px; border:1px solid #e5e7eb;">$${amount}</td></tr>
+      <tr><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Amount</td><td style="padding:12px; border:1px solid #e5e7eb;">${symbol}${amount}</td></tr>
       <tr style="background-color:#f0f4f8;"><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Wallet Address</td><td style="padding:12px; border:1px solid #e5e7eb; word-break: break-word; font-size: 13px;">${walletAddress}</td></tr>
       <tr><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Status</td><td style="padding:12px; border:1px solid #e5e7eb; color: #6d28d9; font-weight: 700;">${status.charAt(0).toUpperCase() + status.slice(1)}</td></tr>
       <tr style="background-color:#f0f4f8;"><td style="padding:12px; border:1px solid #e5e7eb; font-weight: 600;">Date</td><td style="padding:12px; border:1px solid #e5e7eb;">${new Date(date).toLocaleString()}</td></tr>
     </table>
   `;
-  return await sendEmail({ to: email, subject, html: emailTemplate(content) });
+  return await sendEmail({ to: email, subject, html: emailTemplate(content, siteName) });
 }

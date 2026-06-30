@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { sendDepositNotificationEmail, sendWithdrawalNotificationEmail } from '../../lib/mailer.js';
+import { logActivity } from '../../lib/logger.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -52,6 +53,7 @@ router.put('/deposits/:id/status', async (req, res) => {
         })
       ]);
       updatedDeposit = result[0];
+      await logActivity(deposit.user_id, 'deposit completed', req, { amount: deposit.amount, cryptocurrency: deposit.cryptocurrency });
     } else if (status === 'REJECTED') {
       updatedDeposit = await prisma.deposits.update({
         where: { id: deposit.id },

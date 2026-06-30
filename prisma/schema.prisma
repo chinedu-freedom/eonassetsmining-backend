@@ -12,6 +12,11 @@ model admins {
   email         String       @unique
   password_hash String
   role          String       @default("admin")
+  username      String?
+  date_of_birth DateTime?
+  city          String?
+  postal_code   String?
+  profile_image String?
   created_at    DateTime     @default(now())
   updated_at    DateTime     @updatedAt
 
@@ -30,7 +35,6 @@ model users {
   withdrawal_pin   String?
   full_name        String
   username         String?   @unique
-  phone_number     String?
   profile_image    String?
   country_id       String    @db.Uuid
   language_id      String    @db.Uuid
