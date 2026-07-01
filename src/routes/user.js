@@ -1293,98 +1293,191 @@ router.post('/deposit', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: `Amount must be between ${symbol}${minDep} and ${symbol}${maxDep}` });
     }
 
-    // Create a PENDING deposit
-    const deposit = await prisma.deposits.create({
-      data: {
-        user_id: userId,
-        amount: Number(amount),
-        cryptocurrency: `${cryptoOption.symbol} (${cryptoOption.network})`,
-        status: 'PENDING'
+    const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
+    if (OXAPAY_MERCHANT_KEY) {
+      let oxapayNetwork = cryptoOption.network.toLowerCase();
+      if (oxapayNetwork === 'bitcoin') oxapayNetwork = 'btc';
+      if (oxapayNetwork === 'litecoin') oxapayNetwork = 'ltc';
+
+      const BACKEND_URL = process.env.BACKEND_URL || "https://api.polychainapp.com";
+
+      try {
+        const invoiceRes = await fetch("https://api.oxapay.com/merchants/request/whitelabel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            merchant: OXAPAY_MERCHANT_KEY,
+            amount: Number(amount),
+            payCurrency: cryptoOption.symbol.toUpperCase(),
+            network: oxapayNetwork,
+            feePaidByPayer: 0,
+            callbackUrl: `${BACKEND_URL}/users/oxapay-webhook`,
+            description: `${settings?.site_name || "Eon Assets Mining"} Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
+          }),
+        });
+
+        const json = await invoiceRes.json();
+        const returnedAddress = json.payAddress || json.address;
+
+        if (json.result === 100 && returnedAddress) {
+          // Create an initiated deposit record immediately
+          const deposit = await prisma.deposits.create({
+            data: {
+              user_id: userId,
+              amount: Number(amount),
+              cryptocurrency: `${cryptoOption.symbol} (${cryptoOption.network})`,
+              status: 'initiated',
+              track_id: String(json.trackId),
+            }
+          });
+
+          return res.json({
+            success: true,
+            message: 'OxaPay address generated',
+            address: returnedAddress,
+            trackId: json.trackId,
+            dynamic: true,
+            deposit
+          });
+        } else {
+          console.error("OXAPAY_API_REJECTED:", json);
+        }
+      } catch (err) {
+        console.error("OXAPAY_INVOICE_ERROR:", err);
       }
+    }
+
+    // Fallback: merchant static addresses
+    const STATIC_ADDRESSES = {
+      'USDT_TRC20': process.env.OXAPAY_STATIC_ADDRESS || "TTdcQBKZYUzXZDuQyHRaf5FZsG4Dyi9Zc5",
+      'USDT_BEP20': process.env.USDT_BEP20_ADDRESS || "0x3932d34Fa9005d5999A2Fe59A73b7A92c7006F93",
+      'BTC_Bitcoin': process.env.BTC_ADDRESS || "bc1q7kujyz623rar4x8vay0jwznaqg0fszypkl2fhs",
+      'LTC_Litecoin': process.env.LTC_ADDRESS || "ltc1qeaphhhehqrq2mf567apyaq26k9nx2njeem9eq7"
+    };
+
+    const key = `${cryptoOption.symbol.toUpperCase()}_${cryptoOption.network}`;
+    const address = STATIC_ADDRESSES[key] || STATIC_ADDRESSES['USDT_TRC20'];
+
+    return res.json({
+      success: true,
+      message: 'Static address generated',
+      address,
+      dynamic: false
     });
 
-    await logActivity(userId, 'deposit initiated', req, { amount: deposit.amount, cryptocurrency: deposit.cryptocurrency });
+  } catch (error) {
+    console.error('Deposit error:', error);
+    res.status(500).json({ success: false, message: 'An error occurred while processing deposit' });
+  }
+});
 
-    // Send deposit notification email
+router.post('/deposit-notify', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, cryptoId, trackId, txHash } = req.body;
+
+    if (!amount || !cryptoId) {
+      return res.status(400).json({ success: false, message: 'Amount and cryptocurrency are required' });
+    }
+
+    const cryptoOption = await prisma.payout_cryptocurrencies.findUnique({
+      where: { id: cryptoId }
+    });
+
+    if (!cryptoOption) {
+      return res.status(404).json({ success: false, message: 'Cryptocurrency not found' });
+    }
+
+    const now = new Date();
+    const cryptoLabel = `${cryptoOption.symbol} (${cryptoOption.network})`;
+
+    let deposit = null;
+
+    if (trackId) {
+      // Find the initiated deposit and update it
+      const existing = await prisma.deposits.findFirst({
+        where: {
+          track_id: String(trackId),
+          user_id: userId,
+          status: { in: ['pending', 'initiated'] }
+        }
+      });
+
+      if (existing) {
+        deposit = await prisma.deposits.update({
+          where: { id: existing.id },
+          data: {
+            amount: Number(amount),
+            status: 'PENDING',
+            proof_image_url: txHash || null,
+          }
+        });
+      }
+    }
+
+    if (!deposit) {
+      // If no existing or no trackId (static fallback), create a new PENDING deposit
+      if (!txHash) {
+        return res.status(400).json({ success: false, message: 'Transaction Hash is required for manual deposits' });
+      }
+
+      deposit = await prisma.deposits.create({
+        data: {
+          user_id: userId,
+          amount: Number(amount),
+          cryptocurrency: cryptoLabel,
+          status: 'PENDING',
+          tx_hash: txHash,
+          track_id: txHash
+        }
+      });
+    }
+
+    // Send emails
     try {
       await sendDepositNotificationEmail({
         email: req.user.email,
         name: req.user.full_name || req.user.username || 'User',
-        crypto: `${cryptoOption.symbol} (${cryptoOption.network})`,
+        crypto: cryptoLabel,
         amount: Number(amount),
         status: 'pending',
-        date: new Date()
+        date: now
       });
-      // Admin notification
+
       const adminEmail = process.env.ZOHO_FROM_EMAIL;
       if (adminEmail) {
-         await sendDepositNotificationEmail({
-           email: adminEmail,
-           name: 'Admin',
-           crypto: `${cryptoOption.symbol} (${cryptoOption.network})`,
-           amount: Number(amount),
-           status: 'pending',
-           date: new Date(),
-           isAdmin: true,
-           userName: req.user.full_name || req.user.username || 'User',
-           userEmail: req.user.email
-         });
+        await sendDepositNotificationEmail({
+          email: adminEmail,
+          name: 'Admin',
+          crypto: cryptoLabel,
+          amount: Number(amount),
+          status: 'pending',
+          date: now,
+          isAdmin: true,
+          userName: req.user.full_name || req.user.username || 'User',
+          userEmail: req.user.email
+        });
       }
     } catch (err) {
       console.error('Failed to send deposit email:', err);
     }
 
-    // Call OxaPay to create an invoice
-    const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
-    if (!OXAPAY_MERCHANT_KEY) {
-      console.warn('OXAPAY_MERCHANT_KEY is missing! Using mock response.');
-      return res.json({
-        success: true,
-        message: 'Deposit requested successfully.',
-        payment_url: '/dashboard/wallet', // Fallback if no gateway
-        data: deposit
-      });
-    }
-
-    let oxapayNetwork = cryptoOption.network.toLowerCase();
-    if (oxapayNetwork === 'bitcoin') oxapayNetwork = 'btc';
-    if (oxapayNetwork === 'litecoin') oxapayNetwork = 'ltc';
-
-    const BACKEND_URL = process.env.BACKEND_URL || "https://api.polychainapp.com"; // Adjust if needed
-    
-    // Using standard invoice request to get a payLink for redirection
-    const invoiceRes = await fetch("https://api.oxapay.com/merchants/request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        merchant: OXAPAY_MERCHANT_KEY,
-        amount: Number(amount),
-        payCurrency: cryptoOption.symbol.toUpperCase(),
-        network: oxapayNetwork,
-        orderId: deposit.id, // We use the deposit ID as orderId
-        feePaidByPayer: 0,
-        callbackUrl: `${BACKEND_URL}/users/oxapay-webhook`,
-        description: `${settings?.site_name || "Eon Assets Mining"} Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
-      }),
+    await logActivity(userId, 'deposit notified', req, {
+      amount: Number(amount),
+      cryptocurrency: cryptoLabel,
+      txHash: txHash || null,
+      trackId: trackId || null
     });
-    
-    const json = await invoiceRes.json();
 
-    if (json.result === 100 && json.payLink) {
-      return res.json({
-        success: true,
-        message: 'Redirecting to payment gateway...',
-        payment_url: json.payLink,
-        data: deposit
-      });
-    } else {
-      console.error("OXAPAY_API_ERROR:", json);
-      return res.status(500).json({ success: false, message: 'Failed to generate payment invoice' });
-    }
+    return res.json({
+      success: true,
+      message: 'Deposit notification recorded. Balance will credit upon blockchain confirmation.',
+      data: deposit
+    });
 
   } catch (error) {
-    console.error('Deposit error:', error);
-    res.status(500).json({ success: false, message: 'An error occurred while processing deposit' });
+    console.error('Deposit notification error:', error);
+    res.status(500).json({ success: false, message: 'An error occurred while confirming deposit' });
   }
 });
 
@@ -1410,44 +1503,92 @@ router.post('/oxapay-webhook', async (req, res) => {
   const rawStatus = payload?.status;
   
   if (rawStatus === 3 || rawStatus === "Expired") {
-    console.warn(`OXAPAY_WEBHOOK: Payment expired for OrderId: ${payload.orderId}`);
+    console.warn(`OXAPAY_WEBHOOK: Payment expired for TrackId: ${payload.trackId}`);
     return res.status(200).json({ ok: true });
   }
 
   if (rawStatus === 1 || rawStatus === "Confirming" || rawStatus === "waiting") {
-    console.log(`OXAPAY_WEBHOOK: Confirming payment on blockchain for OrderId: ${payload.orderId}`);
+    const trackId = payload.trackId ? String(payload.trackId) : "";
+    console.log(`OXAPAY_WEBHOOK: Confirming payment on blockchain for TrackId: ${trackId}`);
+    if (trackId) {
+      try {
+        const initiatedDeposit = await prisma.deposits.findFirst({
+          where: {
+            track_id: trackId,
+            status: 'initiated'
+          },
+          include: { user: true }
+        });
+        if (initiatedDeposit) {
+          await prisma.deposits.update({
+            where: { id: initiatedDeposit.id },
+            data: { status: 'PENDING' }
+          });
+
+          // Send admin confirmation email
+          const adminEmail = process.env.ZOHO_FROM_EMAIL;
+          if (adminEmail) {
+            await sendDepositNotificationEmail({
+              email: adminEmail,
+              name: 'Admin',
+              crypto: initiatedDeposit.cryptocurrency,
+              amount: Number(initiatedDeposit.amount),
+              status: 'pending',
+              date: new Date(),
+              isAdmin: true,
+              userName: initiatedDeposit.user.full_name || initiatedDeposit.user.username || 'User',
+              userEmail: initiatedDeposit.user.email
+            }).catch(console.error);
+          }
+        }
+      } catch (err) {
+        console.error("OXAPAY_WEBHOOK_CONFIRMING_ERR:", err);
+      }
+    }
     return res.status(200).json({ ok: true });
   }
 
-  // If paid successfully
   if (rawStatus === 2 || rawStatus === "Paid") {
     const paidAmount = Number(payload.amount) || 0;
-    const orderId = payload.orderId;
+    const trackId = payload.trackId ? String(payload.trackId) : "";
+    const currency = payload.currency || "USDT";
 
-    if (!orderId) {
-      console.error("OXAPAY_WEBHOOK_ERROR: orderId missing");
-      return res.status(200).json({ ok: true });
-    }
+    console.log(`OXAPAY_WEBHOOK: Processing confirmed payment: $${paidAmount} ${currency} (TrackId: ${trackId})`);
 
     try {
-      const deposit = await prisma.deposits.findUnique({
-        where: { id: orderId }
-      });
+      let deposit = null;
+      if (trackId) {
+        deposit = await prisma.deposits.findFirst({
+          where: {
+            track_id: trackId,
+            status: { in: ['PENDING', 'initiated'] }
+          }
+        });
+      }
 
       if (!deposit) {
-        console.error("OXAPAY_WEBHOOK_ERROR: Deposit not found for id", orderId);
+        console.log(`OXAPAY_WEBHOOK: No deposit found by trackId ${trackId}, trying amount match`);
+        deposit = await prisma.deposits.findFirst({
+          where: {
+            amount: paidAmount,
+            status: { in: ['PENDING', 'initiated'] }
+          }
+        });
+      }
+
+      if (!deposit) {
+        console.error("OXAPAY_WEBHOOK_ERROR: No matching pending/initiated deposit found for amount", paidAmount, "and TrackID", trackId);
         return res.status(200).json({ ok: true });
       }
 
-      if (deposit.status !== 'PENDING') {
-        console.log(`OXAPAY_WEBHOOK: Deposit ${orderId} already processed (status: ${deposit.status})`);
+      if (deposit.status === 'APPROVED') {
+        console.log(`OXAPAY_WEBHOOK: Deposit ${deposit.id} already processed`);
         return res.status(200).json({ ok: true });
       }
 
-      // We use the actual paid amount
       let creditAmount = paidAmount || Number(deposit.amount);
 
-      // Fetch global settings to apply deposit charge if any
+      // Fetch global settings to apply deposit charge
       const settings = await prisma.settings.findFirst();
       const depositChargePercent = Number(settings?.deposit_charge || 0);
       if (depositChargePercent > 0) {
@@ -1457,7 +1598,6 @@ router.post('/oxapay-webhook', async (req, res) => {
 
       // Perform transaction to approve deposit and credit user
       await prisma.$transaction(async (tx) => {
-        // 1. Update deposit status
         await tx.deposits.update({
           where: { id: deposit.id },
           data: {
@@ -1467,18 +1607,15 @@ router.post('/oxapay-webhook', async (req, res) => {
           }
         });
 
-        // 2. Fetch user to get current balance
         const user = await tx.users.findUnique({ where: { id: deposit.user_id } });
         const balanceBefore = Number(user.balance);
         const balanceAfter = balanceBefore + creditAmount;
 
-        // 3. Update user balance
         await tx.users.update({
           where: { id: deposit.user_id },
           data: { balance: balanceAfter }
         });
 
-        // 4. Create transaction log
         await tx.transactions.create({
           data: {
             user_id: deposit.user_id,
@@ -1491,9 +1628,26 @@ router.post('/oxapay-webhook', async (req, res) => {
         });
       });
 
-      await logActivity(deposit.user_id, 'deposit completed', req, { amount: creditAmount });
+      // Send success email to user
+      try {
+        const user = await prisma.users.findUnique({ where: { id: deposit.user_id } });
+        if (user) {
+          await sendDepositNotificationEmail({
+            email: user.email,
+            name: user.full_name || user.username || 'User',
+            crypto: deposit.cryptocurrency || currency,
+            amount: creditAmount,
+            status: 'approved',
+            date: new Date()
+          });
+        }
+      } catch (err) {
+        console.error("Failed to send deposit success email:", err);
+      }
 
+      await logActivity(deposit.user_id, 'deposit completed', req, { amount: creditAmount });
       console.log(`OXAPAY_WEBHOOK_SUCCESS: Credited $${creditAmount} to user ${deposit.user_id}`);
+
     } catch (err) {
       console.error("OXAPAY_WEBHOOK_TRANSACTION_ERROR:", err);
     }

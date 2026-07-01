@@ -356,6 +356,8 @@ model deposits {
   status           String
   approved_by      String?        @db.Uuid
   approved_at      DateTime?
+  track_id         String?
+  tx_hash          String?
   created_at       DateTime       @default(now())
 
   user          users           @relation(fields: [user_id], references: [id])
