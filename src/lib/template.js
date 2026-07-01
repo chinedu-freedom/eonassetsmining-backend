@@ -1,4 +1,4 @@
-export function emailTemplate(content, siteName = "Eon Assets Mining") {
+export function emailTemplate(content, siteName = "Polychainapp") {
   return `
     <!DOCTYPE html>
     <html lang="en">

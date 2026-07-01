@@ -1312,7 +1312,7 @@ router.post('/deposit', authenticate, async (req, res) => {
             network: oxapayNetwork,
             feePaidByPayer: 0,
             callbackUrl: `${BACKEND_URL}/users/oxapay-webhook`,
-            description: `${settings?.site_name || "Eon Assets Mining"} Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
+            description: `${settings?.site_name || "Polychainapp"} Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
           }),
         });
 
