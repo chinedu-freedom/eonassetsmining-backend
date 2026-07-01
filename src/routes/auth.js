@@ -322,4 +322,82 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// Admin Password Reset In-Memory Store
+const adminPasswordResets = new Map();
+
+// Admin Forgot Password
+router.post('/admin/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    const admin = await prisma.admins.findUnique({ where: { email } });
+    if (!admin) {
+      return res.json({ success: true, message: 'OTP sent successfully' });
+    }
+
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const expires_at = Date.now() + 10 * 60 * 1000; // 10 mins
+
+    adminPasswordResets.set(email, { otp, expires_at });
+
+    await sendPasswordResetEmail(admin.email, admin.username || 'Admin', otp);
+
+    res.json({ success: true, message: 'OTP sent successfully' });
+  } catch (error) {
+    console.error('Admin forgot password error:', error);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+// Admin Verify OTP
+router.post('/admin/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
+
+  try {
+    const record = adminPasswordResets.get(email);
+    if (!record || record.otp !== otp || record.expires_at < Date.now()) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    res.json({ success: true, message: 'OTP verified' });
+  } catch (error) {
+    console.error('Admin verify OTP error:', error);
+    res.status(500).json({ error: 'Failed to verify OTP' });
+  }
+});
+
+// Admin Reset Password
+router.post('/admin/reset-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+  if (!email || !newPassword) return res.status(400).json({ error: 'Email and new password are required' });
+
+  try {
+    const admin = await prisma.admins.findUnique({ where: { email } });
+    if (!admin) return res.status(400).json({ error: 'Invalid request' });
+
+    const record = adminPasswordResets.get(email);
+    if (!record || record.expires_at < Date.now()) {
+      return res.status(400).json({ error: 'No active password reset session found' });
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, 10);
+
+    await prisma.admins.update({
+      where: { id: admin.id },
+      data: { password_hash }
+    });
+
+    adminPasswordResets.delete(email);
+
+    await sendPasswordResetConfirmationEmail(admin.email, admin.username || 'Admin');
+
+    res.json({ success: true, message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Admin reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
 export default router;
