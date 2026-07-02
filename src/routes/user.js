@@ -1483,6 +1483,11 @@ router.post('/deposit-notify', authenticate, async (req, res) => {
 
 // OxaPay Webhook Handler
 router.post('/oxapay-webhook', async (req, res) => {
+
+  console.log("HEADERS:", req.headers);
+  console.log("CONTENT TYPE:", req.headers["content-type"]);
+  console.log("BODY:", req.body);
+  
   const payload = req.body;
   const signature = req.headers["x-oxapay-signature"];
   const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
