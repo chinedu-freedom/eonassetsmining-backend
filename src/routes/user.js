@@ -1358,12 +1358,12 @@ router.post('/deposit', authenticate, async (req, res) => {
     const key = `${cryptoOption.symbol.toUpperCase()}_${cryptoOption.network}`;
     const address = STATIC_ADDRESSES[key] || STATIC_ADDRESSES['USDT_TRC20'];
 
-    // return res.json({
-    //   success: true,
-    //   message: 'Static address generated',
-    //   address,
-    //   dynamic: false
-    // });
+    return res.json({
+      success: true,
+      message: 'Static address generated',
+      address,
+      dynamic: false
+    });
 
   } catch (error) {
     console.error('Deposit error:', error);
