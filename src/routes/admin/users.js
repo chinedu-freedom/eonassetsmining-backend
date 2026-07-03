@@ -154,7 +154,7 @@ router.delete('/:id', async (req, res) => {
     await prisma.user_checkins.deleteMany({ where: { user_id: userId } });
     await prisma.task_claims.deleteMany({ where: { user_id: userId } });
     await prisma.gift_code_claims.deleteMany({ where: { user_id: userId } });
-    await prisma.referral_commissions.deleteMany({ where: { OR: [{ earned_by: userId }, { given_by: userId }] } });
+    await prisma.referral_commissions.deleteMany({ where: { OR: [{ user_id: userId }, { from_user_id: userId }] } });
     await prisma.activity_logs.deleteMany({ where: { user_id: userId } });
     await prisma.email_logs.deleteMany({ where: { user_id: userId } });
     await prisma.user_spins.deleteMany({ where: { user_id: userId } });
