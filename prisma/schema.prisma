@@ -39,6 +39,7 @@ model users {
   country_id       String    @db.Uuid
   language_id      String    @db.Uuid
   balance          Decimal   @default(0) @db.Decimal(18, 8)
+  withdrawable_balance Decimal @default(0) @db.Decimal(18, 8)
   gift_balance     Decimal   @default(0) @db.Decimal(18, 8)
   referral_code    String    @unique
   referred_by      String?   @db.Uuid

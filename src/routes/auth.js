@@ -103,6 +103,7 @@ router.post('/register', async (req, res) => {
         email: user.email,
         full_name: user.full_name,
         balance: user.balance,
+        withdrawable_balance: user.withdrawable_balance,
         email_verified: user.email_verified
       }
     });
@@ -176,6 +177,7 @@ router.post('/login', async (req, res) => {
         email: user.email,
         full_name: user.full_name,
         balance: user.balance,
+        withdrawable_balance: user.withdrawable_balance,
         email_verified: user.email_verified
       }
     });

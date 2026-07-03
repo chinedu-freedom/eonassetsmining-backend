@@ -59,10 +59,20 @@ router.post('/invest', authenticate, async (req, res) => {
     }
 
     const balanceField = source === 'gift' ? 'gift_balance' : 'balance';
-    const currentBalance = Number(user[balanceField]);
-
-    if (currentBalance < investAmount) {
-      return res.status(400).json({ success: false, error: 'Insufficient balance' });
+    let currentBalance = 0;
+    let currentWithdrawable = 0;
+    
+    if (source === 'gift') {
+      currentBalance = Number(user.gift_balance);
+      if (currentBalance < investAmount) {
+        return res.status(400).json({ success: false, error: 'Insufficient gift balance' });
+      }
+    } else {
+      currentBalance = Number(user.balance);
+      currentWithdrawable = Number(user.withdrawable_balance || 0);
+      if ((currentBalance + currentWithdrawable) < investAmount) {
+        return res.status(400).json({ success: false, error: 'Insufficient balance' });
+      }
     }
 
     const dailyProfit = investAmount * (Number(plan.daily_income) / 100);
@@ -72,11 +82,24 @@ router.post('/invest', authenticate, async (req, res) => {
 
     await prisma.$transaction(async (tx) => {
       // Deduct balance
+      let updateData = {};
+      
+      if (source === 'gift') {
+        updateData = { gift_balance: currentBalance - investAmount };
+      } else {
+        if (currentBalance >= investAmount) {
+          updateData = { balance: currentBalance - investAmount };
+        } else {
+          updateData = { 
+            balance: 0,
+            withdrawable_balance: currentWithdrawable - (investAmount - currentBalance)
+          };
+        }
+      }
+
       await tx.users.update({
         where: { id: userId },
-        data: {
-          [balanceField]: currentBalance - investAmount
-        }
+        data: updateData
       });
 
       // Create investment
@@ -93,13 +116,16 @@ router.post('/invest', authenticate, async (req, res) => {
       });
 
       // Add transaction record
+      const balanceBefore = source === 'gift' ? currentBalance : (currentBalance + currentWithdrawable);
+      const balanceAfter = balanceBefore - investAmount;
+      
       await tx.transactions.create({
         data: {
           user_id: userId,
           type: 'INVESTMENT',
           amount: investAmount,
-          balance_before: currentBalance,
-          balance_after: currentBalance - investAmount,
+          balance_before: balanceBefore,
+          balance_after: balanceAfter,
           description: `Investment in ${plan.name} from ${source} balance`
         }
       });
@@ -124,11 +150,11 @@ router.post('/invest', authenticate, async (req, res) => {
           if (!referrer) break;
           
           const commissionAmount = investAmount * (levels[i].rate / 100);
-          const newReferrerBalance = Number(referrer.balance) + commissionAmount;
+          const newReferrerBalance = Number(referrer.withdrawable_balance || 0) + commissionAmount;
           
           await tx.users.update({
             where: { id: referrerId },
-            data: { balance: newReferrerBalance }
+            data: { withdrawable_balance: newReferrerBalance }
           });
           
           await tx.referral_commissions.create({
@@ -145,7 +171,7 @@ router.post('/invest', authenticate, async (req, res) => {
               user_id: referrerId,
               type: 'REFERRAL_COMMISSION',
               amount: commissionAmount,
-              balance_before: Number(referrer.balance),
+              balance_before: Number(referrer.withdrawable_balance || 0),
               balance_after: newReferrerBalance,
               description: `Level ${i + 1} referral commission from ${user.username || user.full_name}`
             }

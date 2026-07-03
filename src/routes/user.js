@@ -82,6 +82,7 @@ router.get('/me', authenticate, async (req, res) => {
         username: user.username,
         profile_image: user.profile_image,
         balance: user.balance,
+        withdrawable_balance: user.withdrawable_balance,
         gift_balance: user.gift_balance,
         country: user.country,
         language: user.language,
@@ -1620,12 +1621,12 @@ router.post('/withdraw', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Incorrect withdrawal password' });
     }
 
-    const mainBal = Number(user.balance || 0);
+    const mainBal = Number(user.withdrawable_balance || 0);
     const giftBal = Number(user.gift_balance || 0);
     const totalBal = mainBal + giftBal;
 
     if (totalBal < Number(amount)) {
-      return res.status(400).json({ success: false, message: 'Insufficient balance' });
+      return res.status(400).json({ success: false, message: 'Insufficient withdrawable balance' });
     }
 
     const fees = Number(amount) * feeRate;
@@ -1647,7 +1648,7 @@ router.post('/withdraw', authenticate, async (req, res) => {
       await tx.users.update({
         where: { id: userId },
         data: { 
-          balance: { decrement: deductMain },
+          withdrawable_balance: { decrement: deductMain },
           gift_balance: { decrement: deductGift }
         }
       });

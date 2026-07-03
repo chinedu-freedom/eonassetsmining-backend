@@ -61,14 +61,14 @@ export const runInvestmentCron = async () => {
 
           // ONLY add to wallet balance if it's NOT a Fixed Deposit
           if (!inv.plan.is_fixed_deposit) {
-            // Get fresh user balance
+            // Get fresh user withdrawable_balance
             const user = await prisma.users.findUnique({ where: { id: inv.user_id } });
-            const newBalance = parseFloat(user.balance || 0) + profitAmount;
+            const newBalance = parseFloat(user.withdrawable_balance || 0) + profitAmount;
 
-            // Add profit to balance
+            // Add profit to withdrawable_balance
             await prisma.users.update({
               where: { id: inv.user_id },
-              data: { balance: newBalance }
+              data: { withdrawable_balance: newBalance }
             });
 
             // Log the transaction
@@ -77,7 +77,7 @@ export const runInvestmentCron = async () => {
                 user_id: inv.user_id,
                 type: 'profit',
                 amount: profitAmount,
-                balance_before: parseFloat(user.balance || 0),
+                balance_before: parseFloat(user.withdrawable_balance || 0),
                 balance_after: newBalance,
                 description: `Daily compounded profit for ${inv.plan.name}`,
                 reference_id: inv.id
@@ -110,11 +110,11 @@ export const runInvestmentCron = async () => {
             
             if (totalAccumulatedProfit > 0) {
               const user = await prisma.users.findUnique({ where: { id: inv.user_id } });
-              const newBalance = parseFloat(user.balance || 0) + totalAccumulatedProfit;
+              const newBalance = parseFloat(user.withdrawable_balance || 0) + totalAccumulatedProfit;
 
               await prisma.users.update({
                 where: { id: inv.user_id },
-                data: { balance: newBalance }
+                data: { withdrawable_balance: newBalance }
               });
 
               await prisma.transactions.create({
@@ -122,7 +122,7 @@ export const runInvestmentCron = async () => {
                   user_id: inv.user_id,
                   type: 'profit',
                   amount: totalAccumulatedProfit,
-                  balance_before: parseFloat(user.balance || 0),
+                  balance_before: parseFloat(user.withdrawable_balance || 0),
                   balance_after: newBalance,
                   description: `Fixed Deposit Maturity Profit for ${inv.plan.name}`,
                   reference_id: inv.id
@@ -146,11 +146,11 @@ export const runInvestmentCron = async () => {
           
           if (totalAccumulatedProfit > 0) {
             const user = await prisma.users.findUnique({ where: { id: inv.user_id } });
-            const newBalance = parseFloat(user.balance || 0) + totalAccumulatedProfit;
+            const newBalance = parseFloat(user.withdrawable_balance || 0) + totalAccumulatedProfit;
 
             await prisma.users.update({
               where: { id: inv.user_id },
-              data: { balance: newBalance }
+              data: { withdrawable_balance: newBalance }
             });
 
             await prisma.transactions.create({
@@ -158,7 +158,7 @@ export const runInvestmentCron = async () => {
                 user_id: inv.user_id,
                 type: 'profit',
                 amount: totalAccumulatedProfit,
-                balance_before: parseFloat(user.balance || 0),
+                balance_before: parseFloat(user.withdrawable_balance || 0),
                 balance_after: newBalance,
                 description: `Fixed Deposit Maturity Profit for ${inv.plan.name}`,
                 reference_id: inv.id
