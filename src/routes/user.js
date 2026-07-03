@@ -1502,7 +1502,7 @@ router.post('/oxapay-webhook', async (req, res) => {
             amount: creditAmount,
             balance_before: balanceBefore,
             balance_after: balanceAfter,
-            description: `Automated Deposit via OxaPay (${payload.currency || 'Crypto'})`
+            description: `Deposit of (${payload.currency || 'Crypto'})`
           }
         });
       });
