@@ -237,18 +237,32 @@ export async function sendDepositNotificationEmail({ email, name, crypto, amount
     }
   }
 
-  const subject = isAdmin ? "New Deposit Request - Action Required" : `Deposit Request Received - ${siteName}`;
+  const lowerStatus = (status || "").toLowerCase();
+  const isApproved = lowerStatus === "approved" || lowerStatus === "success";
+  const isRejected = lowerStatus === "rejected" || lowerStatus === "failed";
+
+  const subject = isAdmin ? "New Deposit Request - Action Required" : `Deposit ${isApproved ? 'Successful' : (isRejected ? 'Rejected' : 'Request Received')} - ${siteName}`;
   
   const heading = isAdmin 
     ? "" 
-    : `<h2 style="color:#0b132b; margin-bottom:12px; text-align:center;">Deposit Pending</h2>`;
+    : `<h2 style="color:#0b132b; margin-bottom:12px; text-align:center;">Deposit ${isApproved ? 'Successful' : (isRejected ? 'Rejected' : 'Pending')}</h2>`;
+
+  const userMessage = isApproved
+    ? `<p style="font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 12px;">
+        Great news! Your deposit of <strong>${symbol}${amount}</strong> has been successfully approved and credited to your account balance.
+      </p>`
+    : isRejected
+    ? `<p style="font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 12px;">
+        Unfortunately, your deposit request of <strong>${symbol}${amount}</strong> has been rejected. Please contact support if you believe this was an error.
+      </p>`
+    : `<p style="font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 12px;">
+        Your deposit request of <strong>${symbol}${amount}</strong> has been received successfully. You will be notified once your deposit has been confirmed on our end, and it will be automatically credited to your account.
+      </p>`;
 
   const message = isAdmin
     ? `<p style="font-size: 15px; color: #333;">A new deposit has been submitted by <strong>${userName}</strong> || <a href="mailto:${userEmail}">${userEmail}</a> </p>
     <p style="font-size: 15px; color: #333;">Please review and verify the transaction in the admin dashboard.</p>`
-    : `<p style="font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 12px;">
-        Your deposit request of <strong>${symbol}${amount}</strong> has been received successfully. You will be notified once your deposit has been confirmed on our end, and it will be automatically credited to your account.
-      </p>
+    : `${userMessage}
       <p style="font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 24px;">
         Thank you for choosing ${siteName}.
       </p>
@@ -300,15 +314,25 @@ export async function sendWithdrawalNotificationEmail({ email, name, crypto, amo
     }
   }
 
-  const subject = isAdmin ? "New Withdrawal Request - Action Required" : `Withdrawal Request Received - ${siteName}`;
+  const lowerStatus = (status || "").toLowerCase();
+  const isApproved = lowerStatus === "approved" || lowerStatus === "success" || lowerStatus === "paid";
+  const isRejected = lowerStatus === "rejected" || lowerStatus === "failed";
+
+  const subject = isAdmin ? "New Withdrawal Request - Action Required" : `Withdrawal ${isApproved ? 'Successful' : (isRejected ? 'Rejected' : 'Request Received')} - ${siteName}`;
+  
+  const userMessage = isApproved
+    ? `<p style="font-size: 15px; color: #555;">Great news! Your <strong>${crypto}</strong> withdrawal request of <strong>${symbol}${amount}</strong> to wallet <strong>${walletAddress}</strong> has been successfully processed.</p>
+       <p style="font-size: 15px; color: #555;">The funds should arrive in your wallet shortly.</p>`
+    : isRejected
+    ? `<p style="font-size: 15px; color: #555;">Unfortunately, your <strong>${crypto}</strong> withdrawal request of <strong>${symbol}${amount}</strong> to wallet <strong>${walletAddress}</strong> has been rejected.</p>
+       <p style="font-size: 15px; color: #555;">Please contact support if you need further assistance.</p>`
+    : `<p style="font-size: 15px; color: #555;">Your <strong>${crypto}</strong> withdrawal request of <strong>${symbol}${amount}</strong> to wallet <strong>${walletAddress}</strong> is currently <strong>${status}</strong>.</p>
+       <p style="font-size: 15px; color: #555;">Once our team reviews and processes your request, you will receive a confirmation email.</p>`;
+
   const message = isAdmin
     ? `<p  style="font-size: 15px; color: #333;">A new withdrawal has been submitted by <strong>${userName}</strong>  <a href="mailto:${userEmail}">${userEmail}</a>
     </p><p  style="font-size: 15px; color: #333;">Please review and process this request in the admin dashboard.</p>`
-    : `<p  style="font-size: 15px; color: #555;">Your <strong>${crypto}</strong> withdrawal request of <strong>${symbol}${amount}</strong> to wallet <strong>${walletAddress}</strong> is currently <strong>${status}</strong>.</p>
-    <p style="font-size: 15px; color: #555;">
-    Once our team reviews and processes your request, you will receive a confirmation email.
-    </p>
-    `;
+    : userMessage;
 
   const content = `
        <p style="font-size: 16px; color: #333333; margin-bottom: 15px;">

@@ -102,6 +102,51 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
+// Get user's investments
+router.get('/me/investments', authenticate, async (req, res) => {
+  try {
+    const investments = await prisma.investments.findMany({
+      where: { user_id: req.user.id },
+      include: {
+        plan: true
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    const activeInvestments = investments.filter(i => i.status === 'active' || i.status === 'ACTIVE');
+    const completedInvestments = investments.filter(i => i.status === 'completed' || i.status === 'COMPLETED');
+    
+    let totalInvested = 0;
+    let totalMonthlyEst = 0;
+    
+    for (const inv of activeInvestments) {
+      totalInvested += Number(inv.amount) || 0;
+      if (inv.plan && inv.plan.return_percent) {
+        // rough estimate if return_percent is e.g. daily, or if it's overall
+        // we'll just sum up amount * (return_percent / 100)
+        totalMonthlyEst += (Number(inv.amount) || 0) * (Number(inv.plan.return_percent) / 100);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        all: investments,
+        active: activeInvestments,
+        completed: completedInvestments,
+        stats: {
+          total_invested: totalInvested,
+          active_count: activeInvestments.length,
+          est_monthly: totalMonthlyEst
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Fetch user investments error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch investments' });
+  }
+});
+
 // Update profile image
 router.put('/profile-image', authenticate, async (req, res) => {
   try {

@@ -140,13 +140,30 @@ router.post('/:id/debit', async (req, res) => {
 // Delete user
 router.delete('/:id', async (req, res) => {
   try {
-    // We should ideally delete associated records first or rely on Prisma cascade delete
-    // If cascade is not set up, we'll manually delete transactions and investments first
-    await prisma.transactions.deleteMany({ where: { user_id: req.params.id } });
-    await prisma.investments.deleteMany({ where: { user_id: req.params.id } });
+    const userId = req.params.id;
     
+    // Nullify referrals
+    await prisma.users.updateMany({ where: { referred_by: userId }, data: { referred_by: null } });
+
+    // Manual cascade delete
+    await prisma.transactions.deleteMany({ where: { user_id: userId } });
+    await prisma.investments.deleteMany({ where: { user_id: userId } });
+    await prisma.deposits.deleteMany({ where: { user_id: userId } });
+    await prisma.withdrawals.deleteMany({ where: { user_id: userId } });
+    await prisma.spin_logs.deleteMany({ where: { user_id: userId } });
+    await prisma.user_checkins.deleteMany({ where: { user_id: userId } });
+    await prisma.task_claims.deleteMany({ where: { user_id: userId } });
+    await prisma.gift_code_claims.deleteMany({ where: { user_id: userId } });
+    await prisma.referral_commissions.deleteMany({ where: { OR: [{ earned_by: userId }, { given_by: userId }] } });
+    await prisma.activity_logs.deleteMany({ where: { user_id: userId } });
+    await prisma.email_logs.deleteMany({ where: { user_id: userId } });
+    await prisma.user_spins.deleteMany({ where: { user_id: userId } });
+    await prisma.password_resets.deleteMany({ where: { user_id: userId } });
+    await prisma.investment_profits.deleteMany({ where: { user_id: userId } });
+    
+    // Finally, delete the user
     await prisma.users.delete({
-      where: { id: req.params.id }
+      where: { id: userId }
     });
     
     res.json({ success: true, message: 'User deleted successfully' });
