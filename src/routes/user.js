@@ -1018,32 +1018,47 @@ router.put('/me/payment', authenticate, async (req, res) => {
 router.delete('/me', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
-    
-    // Nullify referrals
-    await prisma.users.updateMany({ where: { referred_by: userId }, data: { referred_by: null } });
 
-    // Manual cascade delete
-    await prisma.transactions.deleteMany({ where: { user_id: userId } });
-    await prisma.investments.deleteMany({ where: { user_id: userId } });
-    await prisma.deposits.deleteMany({ where: { user_id: userId } });
-    await prisma.withdrawals.deleteMany({ where: { user_id: userId } });
-    await prisma.spin_logs.deleteMany({ where: { user_id: userId } });
-    await prisma.user_checkins.deleteMany({ where: { user_id: userId } });
-    await prisma.task_claims.deleteMany({ where: { user_id: userId } });
-    await prisma.gift_code_claims.deleteMany({ where: { user_id: userId } });
-    await prisma.referral_commissions.deleteMany({ where: { OR: [{ earned_by: userId }, { given_by: userId }] } });
-    await prisma.activity_logs.deleteMany({ where: { user_id: userId } });
-    await prisma.email_logs.deleteMany({ where: { user_id: userId } });
-    await prisma.user_spins.deleteMany({ where: { user_id: userId } });
-    await prisma.password_resets.deleteMany({ where: { user_id: userId } });
-    await prisma.investment_profits.deleteMany({ where: { user_id: userId } });
-    
-    // Now delete the user
-    await prisma.users.delete({ where: { id: userId } });
-    
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete dependent records (transactions, logs, etc.)
+      await tx.investment_profits.deleteMany({ where: { user_id: userId } });
+      await tx.investments.deleteMany({ where: { user_id: userId } });
+      await tx.deposits.deleteMany({ where: { user_id: userId } });
+      await tx.withdrawals.deleteMany({ where: { user_id: userId } });
+      await tx.transactions.deleteMany({ where: { user_id: userId } });
+      await tx.spin_logs.deleteMany({ where: { user_id: userId } });
+      await tx.user_checkins.deleteMany({ where: { user_id: userId } });
+      await tx.task_claims.deleteMany({ where: { user_id: userId } });
+      await tx.gift_code_claims.deleteMany({ where: { user_id: userId } });
+      
+      // Delete referral commissions where user is either the earner or the giver
+      await tx.referral_commissions.deleteMany({ 
+        where: { 
+          OR: [
+            { user_id: userId },
+            { from_user_id: userId }
+          ]
+        } 
+      });
+
+      await tx.activity_logs.deleteMany({ where: { user_id: userId } });
+      await tx.email_logs.deleteMany({ where: { user_id: userId } });
+      await tx.user_spins.deleteMany({ where: { user_id: userId } });
+      await tx.password_resets.deleteMany({ where: { user_id: userId } });
+
+      // 2. Remove the referrer constraint for users referred by this user
+      await tx.users.updateMany({
+        where: { referred_by: userId },
+        data: { referred_by: null }
+      });
+
+      // 3. Finally delete the user
+      await tx.users.delete({ where: { id: userId } });
+    });
+
     res.json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
-    console.error('Delete account error:', error);
+    console.error('Account deletion error:', error);
     res.status(500).json({ success: false, error: 'Failed to delete account' });
   }
 });
@@ -1759,54 +1774,6 @@ router.post('/withdraw', authenticate, async (req, res) => {
   }
 });
 
-// Delete user account
-router.delete('/me', authenticate, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    await prisma.$transaction(async (tx) => {
-      // 1. Delete dependent records (transactions, logs, etc.)
-      await tx.investment_profits.deleteMany({ where: { user_id: userId } });
-      await tx.investments.deleteMany({ where: { user_id: userId } });
-      await tx.deposits.deleteMany({ where: { user_id: userId } });
-      await tx.withdrawals.deleteMany({ where: { user_id: userId } });
-      await tx.transactions.deleteMany({ where: { user_id: userId } });
-      await tx.spin_logs.deleteMany({ where: { user_id: userId } });
-      await tx.user_checkins.deleteMany({ where: { user_id: userId } });
-      await tx.task_claims.deleteMany({ where: { user_id: userId } });
-      await tx.gift_code_claims.deleteMany({ where: { user_id: userId } });
-      
-      // Delete referral commissions where user is either the earner or the giver
-      await tx.referral_commissions.deleteMany({ 
-        where: { 
-          OR: [
-            { user_id: userId },
-            { from_user_id: userId }
-          ]
-        } 
-      });
-
-      await tx.activity_logs.deleteMany({ where: { user_id: userId } });
-      await tx.email_logs.deleteMany({ where: { user_id: userId } });
-      await tx.user_spins.deleteMany({ where: { user_id: userId } });
-      await tx.password_resets.deleteMany({ where: { user_id: userId } });
-
-      // 2. Remove the referrer constraint for users referred by this user
-      await tx.users.updateMany({
-        where: { referred_by: userId },
-        data: { referred_by: null }
-      });
-
-      // 3. Finally delete the user
-      await tx.users.delete({ where: { id: userId } });
-    });
-
-    res.json({ success: true, message: 'Account deleted successfully' });
-  } catch (error) {
-    console.error('Account deletion error:', error);
-    res.status(500).json({ success: false, error: 'Failed to delete account' });
-  }
-});
 
 export default router;
 
