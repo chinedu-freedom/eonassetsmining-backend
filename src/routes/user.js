@@ -122,10 +122,9 @@ router.get('/me/investments', authenticate, async (req, res) => {
     
     for (const inv of activeInvestments) {
       totalInvested += Number(inv.amount) || 0;
-      if (inv.plan && inv.plan.return_percent) {
-        // rough estimate if return_percent is e.g. daily, or if it's overall
-        // we'll just sum up amount * (return_percent / 100)
-        totalMonthlyEst += (Number(inv.amount) || 0) * (Number(inv.plan.return_percent) / 100);
+      if (inv.plan && inv.plan.daily_income) {
+        // Daily income is a percentage. Estimate monthly as 30 days.
+        totalMonthlyEst += (Number(inv.amount) || 0) * (Number(inv.plan.daily_income) / 100) * 30;
       }
     }
 
