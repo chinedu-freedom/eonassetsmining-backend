@@ -1760,5 +1760,54 @@ router.post('/withdraw', authenticate, async (req, res) => {
   }
 });
 
+// Delete user account
+router.delete('/me', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete dependent records (transactions, logs, etc.)
+      await tx.investment_profits.deleteMany({ where: { user_id: userId } });
+      await tx.investments.deleteMany({ where: { user_id: userId } });
+      await tx.deposits.deleteMany({ where: { user_id: userId } });
+      await tx.withdrawals.deleteMany({ where: { user_id: userId } });
+      await tx.transactions.deleteMany({ where: { user_id: userId } });
+      await tx.spin_logs.deleteMany({ where: { user_id: userId } });
+      await tx.user_checkins.deleteMany({ where: { user_id: userId } });
+      await tx.task_claims.deleteMany({ where: { user_id: userId } });
+      await tx.gift_code_claims.deleteMany({ where: { user_id: userId } });
+      
+      // Delete referral commissions where user is either the earner or the giver
+      await tx.referral_commissions.deleteMany({ 
+        where: { 
+          OR: [
+            { earned_by: userId },
+            { given_by: userId }
+          ]
+        } 
+      });
+
+      await tx.activity_logs.deleteMany({ where: { user_id: userId } });
+      await tx.email_logs.deleteMany({ where: { user_id: userId } });
+      await tx.user_spins.deleteMany({ where: { user_id: userId } });
+      await tx.password_resets.deleteMany({ where: { user_id: userId } });
+
+      // 2. Remove the referrer constraint for users referred by this user
+      await tx.users.updateMany({
+        where: { referred_by: userId },
+        data: { referred_by: null }
+      });
+
+      // 3. Finally delete the user
+      await tx.users.delete({ where: { id: userId } });
+    });
+
+    res.json({ success: true, message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('Account deletion error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete account' });
+  }
+});
+
 export default router;
 
