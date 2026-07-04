@@ -1780,8 +1780,8 @@ router.delete('/me', authenticate, async (req, res) => {
       await tx.referral_commissions.deleteMany({ 
         where: { 
           OR: [
-            { earned_by: userId },
-            { given_by: userId }
+            { user_id: userId },
+            { from_user_id: userId }
           ]
         } 
       });
