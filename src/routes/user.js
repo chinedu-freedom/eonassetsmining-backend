@@ -422,7 +422,7 @@ router.get('/tasks', authenticate, async (req, res) => {
   try {
     const tasks = await prisma.tasks.findMany({
       where: { status: true },
-      orderBy: { created_at: 'desc' }
+      orderBy: { created_at: 'asc' }
     });
 
     // We only check task claims for today since these are daily tasks
