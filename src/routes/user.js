@@ -172,11 +172,51 @@ router.put('/profile-image', authenticate, async (req, res) => {
 // Get user transactions
 router.get('/transactions', authenticate, async (req, res) => {
   try {
-    const transactions = await prisma.transactions.findMany({
+    const rawTransactions = await prisma.transactions.findMany({
       where: { user_id: req.user.id },
       orderBy: { created_at: 'desc' }
     });
-    res.json({ success: true, transactions });
+
+    const nonApprovedDeposits = await prisma.deposits.findMany({
+      where: { user_id: req.user.id, status: { not: 'approved' } },
+      orderBy: { created_at: 'desc' }
+    });
+
+    const nonApprovedWithdrawals = await prisma.withdrawals.findMany({
+      where: { user_id: req.user.id, status: { notIn: ['approved', 'processed', 'completed', 'success'] } },
+      orderBy: { created_at: 'desc' }
+    });
+
+    const mappedTransactions = rawTransactions.map(t => ({ ...t, status: 'SUCCESS' }));
+
+    const mappedDeposits = nonApprovedDeposits.map(d => ({
+      id: d.id,
+      user_id: d.user_id,
+      type: 'deposit',
+      amount: d.amount,
+      balance_before: 0,
+      balance_after: d.amount,
+      description: `Deposit via ${d.cryptocurrency || 'Crypto'}`,
+      status: d.status ? d.status.toUpperCase() : 'PENDING',
+      created_at: d.created_at
+    }));
+
+    const mappedWithdrawals = nonApprovedWithdrawals.map(w => ({
+      id: w.id,
+      user_id: w.user_id,
+      type: 'withdrawal',
+      amount: w.amount,
+      balance_before: w.amount,
+      balance_after: 0,
+      description: `Withdrawal via ${w.withdrawal_method}`,
+      status: w.status ? w.status.toUpperCase() : 'PENDING',
+      created_at: w.created_at
+    }));
+
+    const allTransactions = [...mappedTransactions, ...mappedDeposits, ...mappedWithdrawals];
+    allTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).reverse();
+
+    res.json({ success: true, transactions: allTransactions });
   } catch (error) {
     console.error('Transactions fetch error:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch transactions' });
