@@ -1022,10 +1022,10 @@ router.delete('/me', authenticate, async (req, res) => {
     await prisma.$transaction(async (tx) => {
       // 1. Delete dependent records (transactions, logs, etc.)
       await tx.investment_profits.deleteMany({ where: { user_id: userId } });
+      await tx.transactions.deleteMany({ where: { user_id: userId } });
       await tx.investments.deleteMany({ where: { user_id: userId } });
       await tx.deposits.deleteMany({ where: { user_id: userId } });
       await tx.withdrawals.deleteMany({ where: { user_id: userId } });
-      await tx.transactions.deleteMany({ where: { user_id: userId } });
       await tx.spin_logs.deleteMany({ where: { user_id: userId } });
       await tx.user_checkins.deleteMany({ where: { user_id: userId } });
       await tx.task_claims.deleteMany({ where: { user_id: userId } });

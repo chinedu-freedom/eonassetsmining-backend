@@ -156,6 +156,7 @@ router.delete('/:id', async (req, res) => {
     await prisma.users.updateMany({ where: { referred_by: userId }, data: { referred_by: null } });
 
     // Manual cascade delete
+    await prisma.investment_profits.deleteMany({ where: { user_id: userId } });
     await prisma.transactions.deleteMany({ where: { user_id: userId } });
     await prisma.investments.deleteMany({ where: { user_id: userId } });
     await prisma.deposits.deleteMany({ where: { user_id: userId } });
@@ -169,7 +170,6 @@ router.delete('/:id', async (req, res) => {
     await prisma.email_logs.deleteMany({ where: { user_id: userId } });
     await prisma.user_spins.deleteMany({ where: { user_id: userId } });
     await prisma.password_resets.deleteMany({ where: { user_id: userId } });
-    await prisma.investment_profits.deleteMany({ where: { user_id: userId } });
     
     // Finally, delete the user
     await prisma.users.delete({

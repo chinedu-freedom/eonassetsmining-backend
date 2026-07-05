@@ -34,8 +34,17 @@ async function main() {
   for (const c of countriesList) {
     await prisma.countries.upsert({
       where: { country_code: c.country_code },
-      update: {},
-      create: c,
+      update: {
+        country_name: c.country_name,
+        currency_symbol: c.currency_symbol,
+        currency_code: c.currency_code,
+        exchange_rate: c.exchange_rate,
+        auto_update: true,
+      },
+      create: {
+        ...c,
+        auto_update: true,
+      },
     });
   }
   console.log('Countries populated successfully!');

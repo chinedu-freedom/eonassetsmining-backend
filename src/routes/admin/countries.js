@@ -33,13 +33,27 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { country_code, country_name, currency_symbol, currency_code, exchange_rate, auto_update, status } = req.body;
+    
+    let rate = Number(exchange_rate);
+    if (Boolean(auto_update) && currency_code) {
+      try {
+        const fetchRes = await fetch("https://open.er-api.com/v6/latest/USD");
+        const data = await fetchRes.json();
+        if (data && data.rates && data.rates[currency_code.toUpperCase()]) {
+          rate = data.rates[currency_code.toUpperCase()];
+        }
+      } catch (err) {
+        console.error("Failed to fetch initial live rate during creation:", err);
+      }
+    }
+
     const newCountry = await prisma.countries.create({
       data: {
         country_code,
         country_name,
         currency_symbol,
         currency_code,
-        exchange_rate: Number(exchange_rate),
+        exchange_rate: rate,
         auto_update: Boolean(auto_update),
         status: status === 'active' || status === true
       }
@@ -58,6 +72,20 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { country_code, country_name, currency_symbol, currency_code, exchange_rate, auto_update, status } = req.body;
+    
+    let rate = Number(exchange_rate);
+    if (Boolean(auto_update) && currency_code) {
+      try {
+        const fetchRes = await fetch("https://open.er-api.com/v6/latest/USD");
+        const data = await fetchRes.json();
+        if (data && data.rates && data.rates[currency_code.toUpperCase()]) {
+          rate = data.rates[currency_code.toUpperCase()];
+        }
+      } catch (err) {
+        console.error("Failed to fetch live rate during update:", err);
+      }
+    }
+
     const updatedCountry = await prisma.countries.update({
       where: { id: req.params.id },
       data: {
@@ -65,7 +93,7 @@ router.put('/:id', async (req, res) => {
         country_name,
         currency_symbol,
         currency_code,
-        exchange_rate: Number(exchange_rate),
+        exchange_rate: rate,
         auto_update: Boolean(auto_update),
         status: status === 'active' || status === true
       }
