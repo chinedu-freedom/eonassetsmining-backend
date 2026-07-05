@@ -6,7 +6,11 @@ export const runInvestmentCron = async () => {
   try {
     // Get all active investments
     const activeInvestments = await prisma.investments.findMany({
-      where: { status: 'Active' },
+      where: {
+        status: {
+          in: ['Active', 'ACTIVE', 'active']
+        }
+      },
       include: {
         plan: true,
         user: true,
@@ -133,7 +137,7 @@ export const runInvestmentCron = async () => {
 
           await prisma.investments.update({
             where: { id: inv.id },
-            data: { status: 'Completed' }
+            data: { status: 'COMPLETED' }
           });
           // Note: Capital return is completely disabled per user request. Capital vanishes.
         }
@@ -169,7 +173,7 @@ export const runInvestmentCron = async () => {
 
         await prisma.investments.update({
            where: { id: inv.id },
-           data: { status: 'Completed' }
+           data: { status: 'COMPLETED' }
         });
         // Note: Capital return is completely disabled per user request. Capital vanishes.
       }
