@@ -44,10 +44,10 @@ router.get('/:id', async (req, res) => {
 // Create country
 router.post('/', async (req, res) => {
   try {
-    const { country_code, country_name, currency_symbol, currency_code, exchange_rate, auto_update, status } = req.body;
+    const { country_code, country_name, currency_symbol, currency_code, exchange_rate, status } = req.body;
     
-    let rate = Number(exchange_rate);
-    if (Boolean(auto_update) && currency_code) {
+    let rate = Number(exchange_rate) || 1;
+    if (currency_code) {
       try {
         const fetchRes = await fetch("https://open.er-api.com/v6/latest/USD");
         const data = await fetchRes.json();
@@ -66,7 +66,7 @@ router.post('/', async (req, res) => {
         currency_symbol,
         currency_code,
         exchange_rate: rate,
-        auto_update: Boolean(auto_update),
+        auto_update: true,
         status: status === 'active' || status === true
       }
     });
@@ -83,10 +83,10 @@ router.post('/', async (req, res) => {
 // Update country
 router.put('/:id', async (req, res) => {
   try {
-    const { country_code, country_name, currency_symbol, currency_code, exchange_rate, auto_update, status } = req.body;
+    const { country_code, country_name, currency_symbol, currency_code, exchange_rate, status } = req.body;
     
-    let rate = Number(exchange_rate);
-    if (Boolean(auto_update) && currency_code) {
+    let rate = Number(exchange_rate) || 1;
+    if (currency_code) {
       try {
         const fetchRes = await fetch("https://open.er-api.com/v6/latest/USD");
         const data = await fetchRes.json();
@@ -106,7 +106,7 @@ router.put('/:id', async (req, res) => {
         currency_symbol,
         currency_code,
         exchange_rate: rate,
-        auto_update: Boolean(auto_update),
+        auto_update: true,
         status: status === 'active' || status === true
       }
     });
