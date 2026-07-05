@@ -42,18 +42,17 @@ export const runInvestmentCron = async () => {
         let shouldComplete = false;
 
         for (let i = 0; i < daysToPay; i++) {
-          // Get current total_paid to calculate compounding principal
+          // Get current total_paid to track payout progress
           const currentTotalPaid = await prisma.investments.findUnique({ where: { id: inv.id }});
-          const currentPrincipal = parseFloat(inv.amount) + parseFloat(currentTotalPaid.total_paid);
           const dailyIncomePercentage = parseFloat(inv.plan.daily_income);
           
-          // Compound Profit: Profit is based on initial amount + all accumulated profits
-          const profitAmount = currentPrincipal * (dailyIncomePercentage / 100);
+          // Simple Interest Profit: Profit is based strictly on the initial investment amount
+          const profitAmount = parseFloat(inv.amount) * (dailyIncomePercentage / 100);
 
           // Determine the exact paid_date for this missing payout
           const precisePaidDate = new Date(lastPayoutDate.getTime() + ((i + 1) * 24 * 60 * 60 * 1000));
 
-          // Log the profit generation (used for compounding math, and history)
+          // Log the profit generation (used for tracking and history)
           await prisma.investment_profits.create({
             data: {
               investment_id: inv.id,
@@ -83,7 +82,7 @@ export const runInvestmentCron = async () => {
                 amount: profitAmount,
                 balance_before: parseFloat(user.withdrawable_balance || 0),
                 balance_after: newBalance,
-                description: `Daily compounded profit for ${inv.plan.name}`,
+                description: `Daily profit payout for ${inv.plan.name}`,
                 reference_id: inv.id
               }
             });
