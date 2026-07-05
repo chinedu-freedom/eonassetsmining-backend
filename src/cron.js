@@ -192,11 +192,15 @@ export const runExchangeRateCron = async () => {
 
     if (data && data.rates) {
       for (const country of autoUpdateCountries) {
-        const liveRate = data.rates[country.currency_code.toUpperCase()];
+        const trimmedCode = country.currency_code.trim().toUpperCase();
+        const liveRate = data.rates[trimmedCode];
         if (liveRate) {
           await prisma.countries.update({
             where: { id: country.id },
-            data: { exchange_rate: liveRate }
+            data: { 
+              exchange_rate: liveRate,
+              currency_code: trimmedCode // Standardize the code in the database as well
+            }
           });
         }
       }

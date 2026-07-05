@@ -46,13 +46,18 @@ router.post('/', async (req, res) => {
   try {
     const { country_code, country_name, currency_symbol, currency_code, exchange_rate, status } = req.body;
     
+    const trimmedCountryCode = country_code ? country_code.trim().toUpperCase() : "";
+    const trimmedCountryName = country_name ? country_name.trim() : "";
+    const trimmedCurrencySymbol = currency_symbol ? currency_symbol.trim() : "";
+    const trimmedCurrencyCode = currency_code ? currency_code.trim().toUpperCase() : "";
+
     let rate = Number(exchange_rate) || 1;
-    if (currency_code) {
+    if (trimmedCurrencyCode) {
       try {
         const fetchRes = await fetch("https://open.er-api.com/v6/latest/USD");
         const data = await fetchRes.json();
-        if (data && data.rates && data.rates[currency_code.toUpperCase()]) {
-          rate = data.rates[currency_code.toUpperCase()];
+        if (data && data.rates && data.rates[trimmedCurrencyCode]) {
+          rate = data.rates[trimmedCurrencyCode];
         }
       } catch (err) {
         console.error("Failed to fetch initial live rate during creation:", err);
@@ -61,10 +66,10 @@ router.post('/', async (req, res) => {
 
     const newCountry = await prisma.countries.create({
       data: {
-        country_code,
-        country_name,
-        currency_symbol,
-        currency_code,
+        country_code: trimmedCountryCode,
+        country_name: trimmedCountryName,
+        currency_symbol: trimmedCurrencySymbol,
+        currency_code: trimmedCurrencyCode,
         exchange_rate: rate,
         auto_update: true,
         status: status === 'active' || status === true
@@ -85,13 +90,18 @@ router.put('/:id', async (req, res) => {
   try {
     const { country_code, country_name, currency_symbol, currency_code, exchange_rate, status } = req.body;
     
+    const trimmedCountryCode = country_code ? country_code.trim().toUpperCase() : "";
+    const trimmedCountryName = country_name ? country_name.trim() : "";
+    const trimmedCurrencySymbol = currency_symbol ? currency_symbol.trim() : "";
+    const trimmedCurrencyCode = currency_code ? currency_code.trim().toUpperCase() : "";
+
     let rate = Number(exchange_rate) || 1;
-    if (currency_code) {
+    if (trimmedCurrencyCode) {
       try {
         const fetchRes = await fetch("https://open.er-api.com/v6/latest/USD");
         const data = await fetchRes.json();
-        if (data && data.rates && data.rates[currency_code.toUpperCase()]) {
-          rate = data.rates[currency_code.toUpperCase()];
+        if (data && data.rates && data.rates[trimmedCurrencyCode]) {
+          rate = data.rates[trimmedCurrencyCode];
         }
       } catch (err) {
         console.error("Failed to fetch live rate during update:", err);
@@ -101,10 +111,10 @@ router.put('/:id', async (req, res) => {
     const updatedCountry = await prisma.countries.update({
       where: { id: req.params.id },
       data: {
-        country_code,
-        country_name,
-        currency_symbol,
-        currency_code,
+        country_code: trimmedCountryCode,
+        country_name: trimmedCountryName,
+        currency_symbol: trimmedCurrencySymbol,
+        currency_code: trimmedCurrencyCode,
         exchange_rate: rate,
         auto_update: true,
         status: status === 'active' || status === true
