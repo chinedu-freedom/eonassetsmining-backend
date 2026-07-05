@@ -4,6 +4,18 @@ import { PrismaClient } from '@prisma/client';
 const router = Router();
 const prisma = new PrismaClient();
 
+// Sync/Update all exchange rates manually
+router.post('/update-rates', async (req, res) => {
+  try {
+    const { runExchangeRateCron } = await import('../../cron.js');
+    await runExchangeRateCron();
+    res.json({ success: true, message: 'All exchange rates updated successfully' });
+  } catch (error) {
+    console.error('Failed to update exchange rates:', error);
+    res.status(500).json({ success: false, error: 'Failed to update exchange rates' });
+  }
+});
+
 // Get all countries
 router.get('/', async (req, res) => {
   try {
