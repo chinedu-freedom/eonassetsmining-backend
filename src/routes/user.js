@@ -1434,7 +1434,7 @@ router.post('/deposit', authenticate, async (req, res) => {
 
           return res.json({
             success: true,
-            message: 'OxaPay address generated',
+            message: 'Payment address generated',
             address: returnedAddress,
             trackId: json.trackId,
             dynamic: true,
