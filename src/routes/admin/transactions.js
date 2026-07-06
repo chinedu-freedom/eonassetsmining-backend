@@ -50,6 +50,18 @@ router.put('/deposits/:id/status', async (req, res) => {
             balance_after: newBalance,
             description: 'Deposit approved'
           }
+        }),
+        prisma.user_spins.upsert({
+          where: { user_id: deposit.user_id },
+          create: {
+            user_id: deposit.user_id,
+            free_spins_remaining: 1,
+            total_spins_used: 0,
+            total_rewards_earned: 0
+          },
+          update: {
+            free_spins_remaining: { increment: 1 }
+          }
         })
       ]);
       updatedDeposit = result[0];
