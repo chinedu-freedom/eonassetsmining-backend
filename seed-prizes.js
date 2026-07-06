@@ -15,7 +15,7 @@ async function seed() {
     { position: 6, name: "$15.15", value: 15.15, weight: 10, probability: 0.010, color: "#3b82f6", icon: "Banknote" },
     { position: 7, name: "$1.25", value: 1.25, weight: 80, probability: 0.080, color: "#3b82f6", icon: "Coins" },
     { position: 8, name: "$20.20", value: 20.20, weight: 5, probability: 0.005, color: "#3b82f6", icon: "Banknote" },
-    { position: 9, name: "Oops! Try Again 🥲", value: 0.00, weight: 140, probability: 0.140, color: "#ef4444", icon: "Frown" }
+    { position: 9, name: "Oops Try Again🥲", value: 0.00, weight: 140, probability: 0.140, color: "#ef4444", icon: "Frown" }
   ];
 
   for (const prize of prizes) {
