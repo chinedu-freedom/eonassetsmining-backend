@@ -58,21 +58,10 @@ router.post('/invest', authenticate, async (req, res) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    const balanceField = source === 'gift' ? 'gift_balance' : 'balance';
-    let currentBalance = 0;
-    let currentWithdrawable = 0;
-    
-    if (source === 'gift') {
-      currentBalance = Number(user.gift_balance);
-      if (currentBalance < investAmount) {
-        return res.status(400).json({ success: false, error: 'Insufficient gift balance' });
-      }
-    } else {
-      currentBalance = Number(user.balance);
-      currentWithdrawable = Number(user.withdrawable_balance || 0);
-      if ((currentBalance + currentWithdrawable) < investAmount) {
-        return res.status(400).json({ success: false, error: 'Insufficient balance' });
-      }
+    const currentBalance = Number(user.balance);
+    const currentWithdrawable = Number(user.withdrawable_balance || 0);
+    if ((currentBalance + currentWithdrawable) < investAmount) {
+      return res.status(400).json({ success: false, error: 'Insufficient balance' });
     }
 
     const dailyProfit = investAmount * (Number(plan.daily_income) / 100);
@@ -84,17 +73,13 @@ router.post('/invest', authenticate, async (req, res) => {
       // Deduct balance
       let updateData = {};
       
-      if (source === 'gift') {
-        updateData = { gift_balance: currentBalance - investAmount };
+      if (currentBalance >= investAmount) {
+        updateData = { balance: currentBalance - investAmount };
       } else {
-        if (currentBalance >= investAmount) {
-          updateData = { balance: currentBalance - investAmount };
-        } else {
-          updateData = { 
-            balance: 0,
-            withdrawable_balance: currentWithdrawable - (investAmount - currentBalance)
-          };
-        }
+        updateData = { 
+          balance: 0,
+          withdrawable_balance: currentWithdrawable - (investAmount - currentBalance)
+        };
       }
 
       await tx.users.update({
@@ -116,7 +101,7 @@ router.post('/invest', authenticate, async (req, res) => {
       });
 
       // Add transaction record
-      const balanceBefore = source === 'gift' ? currentBalance : (currentBalance + currentWithdrawable);
+      const balanceBefore = currentBalance + currentWithdrawable;
       const balanceAfter = balanceBefore - investAmount;
       
       await tx.transactions.create({
@@ -126,7 +111,7 @@ router.post('/invest', authenticate, async (req, res) => {
           amount: investAmount,
           balance_before: balanceBefore,
           balance_after: balanceAfter,
-          description: `Investment in ${plan.name} from ${source} balance`
+          description: `Investment in ${plan.name}`
         }
       });
       

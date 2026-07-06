@@ -33,7 +33,8 @@ async function main() {
       language_id: language.id,
       referral_code: referralCode,
       balance: 1500.50, // Give them some balance so it looks good on the dashboard
-      gift_balance: 50.00
+      withdrawable_balance: 50.00,
+      gift_balance: 0.00
     },
   });
 

@@ -412,19 +412,19 @@ router.post('/checkin', authenticate, async (req, res) => {
         }
       });
 
-      // 2. Add to user balance
+      // 2. Add to user withdrawable balance
       await tx.users.update({
         where: { id: userId },
         data: {
-          balance: {
+          withdrawable_balance: {
             increment: rewardConfig.reward_amount
           }
         }
       });
 
       // 3. Create transaction record
-      const balanceBefore = user.balance;
-      const balanceAfter = Number(user.balance) + Number(rewardConfig.reward_amount);
+      const balanceBefore = user.withdrawable_balance;
+      const balanceAfter = Number(user.withdrawable_balance) + Number(rewardConfig.reward_amount);
 
       await tx.transactions.create({
         data: {
@@ -561,10 +561,10 @@ router.post('/tasks/claim', authenticate, async (req, res) => {
         }
       });
 
-      // Update user balance
+      // Update user withdrawable balance
       const updatedUser = await tx.users.update({
         where: { id: userId },
-        data: { balance: { increment: task.reward_amount } }
+        data: { withdrawable_balance: { increment: task.reward_amount } }
       });
 
       // Record transaction
@@ -573,8 +573,8 @@ router.post('/tasks/claim', authenticate, async (req, res) => {
           user_id: userId,
           type: 'TASK_REWARD',
           amount: task.reward_amount,
-          balance_before: updatedUser.balance - task.reward_amount,
-          balance_after: updatedUser.balance,
+          balance_before: Number(updatedUser.withdrawable_balance) - Number(task.reward_amount),
+          balance_after: updatedUser.withdrawable_balance,
           description: `Reward for completing task: ${task.task_name}`
         }
       });
@@ -662,26 +662,13 @@ router.post('/treasure/claim', authenticate, async (req, res) => {
       // Fetch user to get current balances
       const user = await tx.users.findUnique({ where: { id: userId } });
 
-      let balance_before = 0;
-      let balance_after = 0;
+      let balance_before = user.withdrawable_balance;
+      let balance_after = Number(user.withdrawable_balance) + Number(giftCode.reward_amount);
 
-      // Update user balance based on reward_type
-      if (giftCode.reward_type === 'GIFT_BALANCE') {
-        balance_before = user.gift_balance;
-        balance_after = Number(user.gift_balance) + Number(giftCode.reward_amount);
-        await tx.users.update({
-          where: { id: userId },
-          data: { gift_balance: balance_after }
-        });
-      } else {
-        // default to normal balance
-        balance_before = user.balance;
-        balance_after = Number(user.balance) + Number(giftCode.reward_amount);
-        await tx.users.update({
-          where: { id: userId },
-          data: { balance: balance_after }
-        });
-      }
+      await tx.users.update({
+        where: { id: userId },
+        data: { withdrawable_balance: balance_after }
+      });
 
       // Record transaction
       await tx.transactions.create({
@@ -1187,7 +1174,7 @@ router.get('/spin', authenticate, async (req, res) => {
     // We also need the user's available balance to see if they can afford a paid spin
     const user = await prisma.users.findUnique({
       where: { id: userId },
-      select: { balance: true }
+      select: { withdrawable_balance: true }
     });
 
     res.json({
@@ -1197,7 +1184,7 @@ router.get('/spin', authenticate, async (req, res) => {
         prizes,
         userSpins,
         recentWins,
-        accountBalance: user.balance
+        accountBalance: user.withdrawable_balance
       }
     });
 
@@ -1241,7 +1228,7 @@ router.post('/spin', authenticate, async (req, res) => {
       cost = 0;
     } else {
       // Check if they can afford paid spin
-      if (Number(user.balance) < cost) {
+      if (Number(user.withdrawable_balance) < cost) {
         return res.status(400).json({ success: false, message: 'Insufficient balance for a spin' });
       }
     }
@@ -1272,7 +1259,7 @@ router.post('/spin', authenticate, async (req, res) => {
     }
 
     const rewardAmount = Number(selectedPrize.value);
-    let currentBalance = Number(user.balance);
+    let currentBalance = Number(user.withdrawable_balance || 0);
 
     // Process the transaction using a Prisma transaction to ensure consistency
     await prisma.$transaction(async (tx) => {
@@ -1289,7 +1276,7 @@ router.post('/spin', authenticate, async (req, res) => {
       } else {
         await tx.users.update({
           where: { id: userId },
-          data: { balance: { decrement: cost } }
+          data: { withdrawable_balance: { decrement: cost } }
         });
         await tx.user_spins.update({
           where: { user_id: userId },
@@ -1316,26 +1303,27 @@ router.post('/spin', authenticate, async (req, res) => {
         currentBalance = balanceAfterCost;
       }
 
-      // 2. Add reward to balance if > 0
+      // 2. Add reward to withdrawable_balance if > 0
       if (rewardAmount > 0) {
         await tx.users.update({
           where: { id: userId },
-          data: { balance: { increment: rewardAmount } }
+          data: { withdrawable_balance: { increment: rewardAmount } }
         });
 
-        const balanceAfterReward = currentBalance + rewardAmount;
+        const withdrawableBefore = currentBalance;
+        const withdrawableAfter = withdrawableBefore + rewardAmount;
+
         // Log transaction for reward
         await tx.transactions.create({
           data: {
             user_id: userId,
             type: 'spin_reward',
             amount: rewardAmount,
-            balance_before: currentBalance,
-            balance_after: balanceAfterReward,
+            balance_before: withdrawableBefore,
+            balance_after: withdrawableAfter,
             description: `Won ${selectedPrize.name} from Spin Wheel`
           }
         });
-        currentBalance = balanceAfterReward;
       }
 
       // 3. Log the spin
@@ -1676,11 +1664,9 @@ router.post('/withdraw', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Incorrect withdrawal password' });
     }
 
-    const mainBal = Number(user.withdrawable_balance || 0);
-    const giftBal = Number(user.gift_balance || 0);
-    const totalBal = mainBal + giftBal;
+    const withdrawableBal = Number(user.withdrawable_balance || 0);
 
-    if (totalBal < Number(amount)) {
+    if (withdrawableBal < Number(amount)) {
       return res.status(400).json({ success: false, message: 'Insufficient withdrawable balance' });
     }
 
@@ -1688,23 +1674,13 @@ router.post('/withdraw', authenticate, async (req, res) => {
     const netAmount = Number(amount) - fees;
 
     await prisma.$transaction(async (tx) => {
-      let deductMain = 0;
-      let deductGift = 0;
       const numAmount = Number(amount);
-
-      if (mainBal >= numAmount) {
-        deductMain = numAmount;
-      } else {
-        deductMain = mainBal;
-        deductGift = numAmount - mainBal;
-      }
 
       // Deduct balances
       await tx.users.update({
         where: { id: userId },
         data: { 
-          withdrawable_balance: { decrement: deductMain },
-          gift_balance: { decrement: deductGift }
+          withdrawable_balance: { decrement: numAmount }
         }
       });
 
@@ -1727,8 +1703,8 @@ router.post('/withdraw', authenticate, async (req, res) => {
           user_id: userId,
           type: 'WITHDRAWAL',
           amount: amount,
-          balance_before: totalBal,
-          balance_after: totalBal - numAmount,
+          balance_before: withdrawableBal,
+          balance_after: withdrawableBal - numAmount,
           reference_id: withdrawal.id,
           description: `Withdrawal request via ${network}`
         }

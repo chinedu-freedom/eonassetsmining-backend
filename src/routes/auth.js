@@ -66,8 +66,9 @@ router.post('/register', async (req, res) => {
         referred_by: referred_by_id,
         last_login: new Date(),
         last_ip: clientIp,
-        balance: bonusDest === 'deposit' ? regBonus : 0,
-        gift_balance: bonusDest === 'gift' ? regBonus : 0
+        balance: 0,
+        gift_balance: 0,
+        withdrawable_balance: regBonus
       }
     });
 
