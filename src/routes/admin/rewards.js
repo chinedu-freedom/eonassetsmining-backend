@@ -176,7 +176,10 @@ router.delete('/check-ins/:id', async (req, res) => {
 // ----- Spin Prizes -----
 router.get('/spin-prizes', async (req, res) => {
   try {
-    const prizes = await prisma.spin_prizes.findMany({ orderBy: { position: 'asc' } });
+    const prizes = await prisma.spin_prizes.findMany({
+      where: { position: { lte: 8 } },
+      orderBy: { position: 'asc' }
+    });
     res.json(prizes);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch spin prizes' });
@@ -185,7 +188,18 @@ router.get('/spin-prizes', async (req, res) => {
 
 router.post('/spin-prizes', async (req, res) => {
   try {
-    const prize = await prisma.spin_prizes.create({ data: req.body });
+    const count = await prisma.spin_prizes.count({
+      where: { position: { lte: 8 } }
+    });
+    if (count >= 8) {
+      return res.status(400).json({ error: 'Maximum of 8 spin prizes reached' });
+    }
+    
+    // Ensure position is between 1 and 8
+    const position = req.body.position ? Math.min(8, Math.max(1, Number(req.body.position))) : 1;
+    const data = { ...req.body, position };
+
+    const prize = await prisma.spin_prizes.create({ data });
     res.status(201).json(prize);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create spin prize' });
@@ -194,7 +208,18 @@ router.post('/spin-prizes', async (req, res) => {
 
 router.put('/spin-prizes/:id', async (req, res) => {
   try {
-    const prize = await prisma.spin_prizes.update({ where: { id: req.params.id }, data: req.body });
+    // Ensure we do not modify the constant 9th prize if somehow hit
+    const existing = await prisma.spin_prizes.findUnique({ where: { id: req.params.id } });
+    if (existing && existing.position === 9) {
+      return res.status(400).json({ error: 'Cannot modify system constant prize' });
+    }
+
+    const data = { ...req.body };
+    if (data.position) {
+      data.position = Math.min(8, Math.max(1, Number(data.position)));
+    }
+
+    const prize = await prisma.spin_prizes.update({ where: { id: req.params.id }, data });
     res.json(prize);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update spin prize' });
@@ -203,6 +228,12 @@ router.put('/spin-prizes/:id', async (req, res) => {
 
 router.delete('/spin-prizes/:id', async (req, res) => {
   try {
+    // Ensure we do not delete the constant 9th prize
+    const existing = await prisma.spin_prizes.findUnique({ where: { id: req.params.id } });
+    if (existing && existing.position === 9) {
+      return res.status(400).json({ error: 'Cannot delete system constant prize' });
+    }
+
     await prisma.spin_prizes.delete({ where: { id: req.params.id } });
     res.json({ message: 'Spin prize deleted' });
   } catch (error) {

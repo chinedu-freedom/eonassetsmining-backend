@@ -1163,10 +1163,64 @@ router.get('/spin', authenticate, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Spin wheel is currently disabled' });
     }
 
-    const prizes = await prisma.spin_prizes.findMany({
-      where: { status: true },
-      orderBy: { position: 'asc' }
+    // Ensure "Oops Try Again" exists at position 9
+    let tryAgainPrize = await prisma.spin_prizes.findFirst({
+      where: { position: 9 }
     });
+
+    if (!tryAgainPrize) {
+      tryAgainPrize = await prisma.spin_prizes.findFirst({
+        where: { name: { contains: 'Try Again' } }
+      });
+      
+      if (!tryAgainPrize) {
+        tryAgainPrize = await prisma.spin_prizes.create({
+          data: {
+            position: 9,
+            name: "Oops Try Again🥲",
+            value: 0.00,
+            weight: 150,
+            probability: 0.15,
+            color: "#ef4444",
+            icon: "Frown",
+            status: true
+          }
+        });
+      } else {
+        tryAgainPrize = await prisma.spin_prizes.update({
+          where: { id: tryAgainPrize.id },
+          data: { position: 9 }
+        });
+      }
+    }
+
+    const activePrizes = await prisma.spin_prizes.findMany({
+      where: { 
+        status: true,
+        position: { lte: 8 }
+      },
+      orderBy: { position: 'asc' },
+      take: 8
+    });
+
+    const prizes = [];
+    for (let i = 0; i < 8; i++) {
+      if (activePrizes[i]) {
+        prizes.push(activePrizes[i]);
+      } else {
+        prizes.push({
+          id: `placeholder-${i}`,
+          name: `$0.00`,
+          value: 0.00,
+          weight: 100,
+          position: i + 1,
+          status: true,
+          color: i % 2 === 0 ? "#3b82f6" : "#60a5fa",
+          icon: "Coins"
+        });
+      }
+    }
+    prizes.push(tryAgainPrize);
 
     // Ensure user_spins record exists
     let userSpins = await prisma.user_spins.findUnique({ where: { user_id: userId } });
@@ -1251,11 +1305,64 @@ router.post('/spin', authenticate, async (req, res) => {
       }
     }
 
-    // Determine the prize
-    const prizes = await prisma.spin_prizes.findMany({
-      where: { status: true },
-      orderBy: { position: 'asc' }
+    // Ensure "Oops Try Again" exists at position 9
+    let tryAgainPrize = await prisma.spin_prizes.findFirst({
+      where: { position: 9 }
     });
+
+    if (!tryAgainPrize) {
+      tryAgainPrize = await prisma.spin_prizes.findFirst({
+        where: { name: { contains: 'Try Again' } }
+      });
+      
+      if (!tryAgainPrize) {
+        tryAgainPrize = await prisma.spin_prizes.create({
+          data: {
+            position: 9,
+            name: "Oops Try Again🥲",
+            value: 0.00,
+            weight: 150,
+            probability: 0.15,
+            color: "#ef4444",
+            icon: "Frown",
+            status: true
+          }
+        });
+      } else {
+        tryAgainPrize = await prisma.spin_prizes.update({
+          where: { id: tryAgainPrize.id },
+          data: { position: 9 }
+        });
+      }
+    }
+
+    const activePrizes = await prisma.spin_prizes.findMany({
+      where: { 
+        status: true,
+        position: { lte: 8 }
+      },
+      orderBy: { position: 'asc' },
+      take: 8
+    });
+
+    const prizes = [];
+    for (let i = 0; i < 8; i++) {
+      if (activePrizes[i]) {
+        prizes.push(activePrizes[i]);
+      } else {
+        prizes.push({
+          id: `placeholder-${i}`,
+          name: `$0.00`,
+          value: 0.00,
+          weight: 100,
+          position: i + 1,
+          status: true,
+          color: i % 2 === 0 ? "#3b82f6" : "#60a5fa",
+          icon: "Coins"
+        });
+      }
+    }
+    prizes.push(tryAgainPrize);
 
     if (prizes.length === 0) {
       return res.status(500).json({ success: false, message: 'No prizes configured' });
@@ -1348,7 +1455,7 @@ router.post('/spin', authenticate, async (req, res) => {
       await tx.spin_logs.create({
         data: {
           user_id: userId,
-          prize_id: selectedPrize.id,
+          prize_id: selectedPrize.id.startsWith('placeholder') ? tryAgainPrize.id : selectedPrize.id,
           spin_type: spinType,
           reward_earned: rewardAmount
         }
