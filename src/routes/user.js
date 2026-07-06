@@ -187,7 +187,24 @@ router.get('/transactions', authenticate, async (req, res) => {
       orderBy: { created_at: 'desc' }
     });
 
-    const mappedTransactions = rawTransactions.map(t => ({ ...t, status: 'SUCCESS' }));
+    // Fetch user withdrawals to map reference_id to wallet_address for withdrawal transactions
+    const userWithdrawals = await prisma.withdrawals.findMany({
+      where: { user_id: req.user.id }
+    });
+
+    const withdrawalMap = {};
+    userWithdrawals.forEach(w => {
+      withdrawalMap[w.id] = w.wallet_address;
+    });
+
+    const mappedTransactions = rawTransactions.map(t => {
+      const isWithdrawal = t.type === 'WITHDRAWAL';
+      return {
+        ...t,
+        status: 'SUCCESS',
+        wallet_address: (isWithdrawal && t.reference_id) ? withdrawalMap[t.reference_id] : undefined
+      };
+    });
 
     const mappedDeposits = nonApprovedDeposits.map(d => ({
       id: d.id,
@@ -210,7 +227,8 @@ router.get('/transactions', authenticate, async (req, res) => {
       balance_after: 0,
       description: `Withdrawal via ${w.withdrawal_method}`,
       status: w.status ? w.status.toUpperCase() : 'PENDING',
-      created_at: w.created_at
+      created_at: w.created_at,
+      wallet_address: w.wallet_address
     }));
 
     const allTransactions = [...mappedTransactions, ...mappedDeposits, ...mappedWithdrawals];
