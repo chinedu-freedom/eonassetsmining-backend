@@ -1192,7 +1192,7 @@ router.get('/spin', authenticate, async (req, res) => {
     // We also need the user's available balance to see if they can afford a paid spin
     const user = await prisma.users.findUnique({
       where: { id: userId },
-      select: { withdrawable_balance: true }
+      select: { balance: true }
     });
 
     res.json({
@@ -1202,7 +1202,7 @@ router.get('/spin', authenticate, async (req, res) => {
         prizes,
         userSpins,
         recentWins,
-        accountBalance: user.withdrawable_balance
+        accountBalance: user.balance
       }
     });
 
@@ -1246,7 +1246,7 @@ router.post('/spin', authenticate, async (req, res) => {
       cost = 0;
     } else {
       // Check if they can afford paid spin
-      if (Number(user.withdrawable_balance) < cost) {
+      if (Number(user.balance) < cost) {
         return res.status(400).json({ success: false, message: 'Insufficient balance for a spin' });
       }
     }
@@ -1277,7 +1277,7 @@ router.post('/spin', authenticate, async (req, res) => {
     }
 
     const rewardAmount = Number(selectedPrize.value);
-    let currentBalance = Number(user.withdrawable_balance || 0);
+    let currentBalance = Number(user.balance || 0);
 
     // Process the transaction using a Prisma transaction to ensure consistency
     await prisma.$transaction(async (tx) => {
@@ -1294,7 +1294,7 @@ router.post('/spin', authenticate, async (req, res) => {
       } else {
         await tx.users.update({
           where: { id: userId },
-          data: { withdrawable_balance: { decrement: cost } }
+          data: { balance: { decrement: cost } }
         });
         await tx.user_spins.update({
           where: { user_id: userId },
@@ -1328,7 +1328,7 @@ router.post('/spin', authenticate, async (req, res) => {
           data: { withdrawable_balance: { increment: rewardAmount } }
         });
 
-        const withdrawableBefore = currentBalance;
+        const withdrawableBefore = Number(user.withdrawable_balance || 0);
         const withdrawableAfter = withdrawableBefore + rewardAmount;
 
         // Log transaction for reward
