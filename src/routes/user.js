@@ -214,7 +214,7 @@ router.get('/transactions', authenticate, async (req, res) => {
     }));
 
     const allTransactions = [...mappedTransactions, ...mappedDeposits, ...mappedWithdrawals];
-    allTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).reverse();
+    allTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     res.json({ success: true, transactions: allTransactions });
   } catch (error) {
