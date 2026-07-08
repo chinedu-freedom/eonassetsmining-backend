@@ -92,26 +92,26 @@ router.get('/stats', async (req, res) => {
         activeUsers,
         todayUsers,
         
-        totalAssets: usersBalances._sum.balance || 0,
-        assetsValue: (depMap.APPROVED.sum) + (usersBalances._sum.balance || 0), // Rough metric
+        totalAssets: Number(usersBalances._sum.balance || 0),
+        assetsValue: Number(depMap.APPROVED.sum || 0) + Number(usersBalances._sum.balance || 0), // Rough metric
         inProgressAssetsCount: investmentsStats._count || 0,
-        inProgressAssetsSum: investmentsStats._sum.amount || 0,
+        inProgressAssetsSum: Number(investmentsStats._sum.amount || 0),
         
         pendingDepositsCount: depMap.PENDING.count,
         approvedDepositsCount: depMap.APPROVED.count,
         pendingWithdrawalsCount: wdMap.PENDING.count,
         approvedWithdrawalsCount: wdMap.APPROVED.count,
 
-        pendingDepositsSum: depMap.PENDING.sum,
-        approvedDepositsSum: depMap.APPROVED.sum,
-        pendingWithdrawalsSum: wdMap.PENDING.sum,
-        approvedWithdrawalsSum: wdMap.APPROVED.sum,
+        pendingDepositsSum: Number(depMap.PENDING.sum || 0),
+        approvedDepositsSum: Number(depMap.APPROVED.sum || 0),
+        pendingWithdrawalsSum: Number(wdMap.PENDING.sum || 0),
+        approvedWithdrawalsSum: Number(wdMap.APPROVED.sum || 0),
 
-        todayDepositsSum: todayDepositsStats._sum.amount || 0,
-        todayWithdrawalsSum: todayWithdrawalsStats._sum.amount || 0,
-        todayInvestmentsSum: todayInvestmentsStats._sum.amount || 0,
+        todayDepositsSum: Number(todayDepositsStats._sum.amount || 0),
+        todayWithdrawalsSum: Number(todayWithdrawalsStats._sum.amount || 0),
+        todayInvestmentsSum: Number(todayInvestmentsStats._sum.amount || 0),
         
-        totalInterestAmount: investmentsStats._sum.total_paid || 0
+        totalInterestAmount: Number(investmentsStats._sum.total_paid || 0)
       }
     });
   } catch (error) {
