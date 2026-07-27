@@ -1,4 +1,4 @@
-export function emailTemplate(content, siteName = "Polychainapp") {
+export function emailTemplate(content, siteName = "mykryptexapp.com") {
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -8,12 +8,12 @@ export function emailTemplate(content, siteName = "Polychainapp") {
     </head>
     <body style="margin:0; padding:0; background-color:#f8f9fa; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
       <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f8f9fa; padding:40px 0;">
-        <tr>
+         <tr>
           <td align="center">
             <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.04);">
               <!-- Header -->
               <tr>
-                <td style="background-color:#2563eb; padding:30px 40px; text-align:center;">
+                <td style="background-color:#d97706; padding:30px 40px; text-align:center;">
                   <h1 style="color:#ffffff; margin:0; font-size:28px; letter-spacing:1px;">${siteName}</h1>
                 </td>
               </tr>

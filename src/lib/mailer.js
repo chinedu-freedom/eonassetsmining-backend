@@ -7,9 +7,9 @@ const prisma = new PrismaClient();
 async function getSiteName() {
   try {
     const settings = await prisma.settings.findFirst();
-    return settings?.site_name || "Polychainapp";
+    return settings?.site_name || "mykryptexapp.com";
   } catch (error) {
-    return "Polychainapp";
+    return "mykryptexapp.com";
   }
 }
 

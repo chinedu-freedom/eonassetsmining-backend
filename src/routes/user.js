@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth.js';
 import bcrypt from 'bcrypt';
-import { 
+import {
   sendVerificationEmail,
   sendDepositNotificationEmail,
   sendWithdrawalNotificationEmail,
-  sendPasswordChangeConfirmationEmail 
+  sendPasswordChangeConfirmationEmail
 } from '../lib/mailer.js';
 import { logActivity } from '../lib/logger.js';
 
@@ -59,12 +59,12 @@ router.get('/me', authenticate, async (req, res) => {
     const userTransactions = await prisma.transactions.findMany({
       where: { user_id: req.user.id }
     });
-    
+
     let totalIncome = 0;
     for (const t of userTransactions) {
       if (t.type !== 'DEPOSIT' && t.type !== 'ADMIN_DEBIT') {
         if (parseFloat(t.balance_after) > parseFloat(t.balance_before)) {
-           totalIncome += parseFloat(t.amount);
+          totalIncome += parseFloat(t.amount);
         }
       }
     }
@@ -116,10 +116,10 @@ router.get('/me/investments', authenticate, async (req, res) => {
 
     const activeInvestments = investments.filter(i => i.status === 'active' || i.status === 'ACTIVE');
     const completedInvestments = investments.filter(i => i.status === 'completed' || i.status === 'COMPLETED');
-    
+
     let totalInvested = 0;
     let totalMonthlyEst = 0;
-    
+
     for (const inv of activeInvestments) {
       totalInvested += Number(inv.amount) || 0;
       if (inv.plan && inv.plan.daily_income) {
@@ -152,7 +152,7 @@ router.get('/me/investments', authenticate, async (req, res) => {
 router.put('/profile-image', authenticate, async (req, res) => {
   try {
     const { profile_image } = req.body;
-    
+
     if (!profile_image) {
       return res.status(400).json({ success: false, error: 'No image provided' });
     }
@@ -245,7 +245,7 @@ router.get('/transactions', authenticate, async (req, res) => {
 router.put('/me/language', authenticate, async (req, res) => {
   try {
     const { language_code } = req.body;
-    
+
     // Find the language by code
     const language = await prisma.languages.findUnique({
       where: { language_code }
@@ -272,7 +272,7 @@ router.get('/checkin', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const user = await prisma.users.findUnique({ where: { id: userId } });
-    
+
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -330,7 +330,7 @@ router.get('/checkin', authenticate, async (req, res) => {
     // if max days reached, start over
     const maxDays = checkinConfig.length;
     let nextDayNumber = claimedToday ? currentStreak + 1 : currentStreak + 1;
-    
+
     if (nextDayNumber > maxDays) {
       if (claimedToday) {
         // already claimed the last day today, waiting for tomorrow to reset
@@ -367,7 +367,7 @@ router.post('/checkin', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const user = await prisma.users.findUnique({ where: { id: userId } });
-    
+
     if (!user || !user.can_access_checkin) {
       return res.status(403).json({ error: 'Check-in is disabled' });
     }
@@ -488,7 +488,7 @@ router.get('/tasks', authenticate, async (req, res) => {
     startOfDay.setHours(0, 0, 0, 0);
 
     const userClaims = await prisma.task_claims.findMany({
-      where: { 
+      where: {
         user_id: req.user.id,
         completed_at: {
           gte: startOfDay
@@ -509,7 +509,7 @@ router.get('/tasks', authenticate, async (req, res) => {
       const claim = userClaims.find(c => c.task_id === task.id);
       const isClaimed = !!claim;
       const progress = isClaimed ? task.required_referrals : Math.min(todayReferralsCount, task.required_referrals);
-      
+
       return {
         ...task,
         progress,
@@ -543,8 +543,8 @@ router.post('/tasks/claim', authenticate, async (req, res) => {
     startOfDay.setHours(0, 0, 0, 0);
 
     const existingClaim = await prisma.task_claims.findFirst({
-      where: { 
-        task_id: taskId, 
+      where: {
+        task_id: taskId,
         user_id: userId,
         completed_at: {
           gte: startOfDay
@@ -756,7 +756,7 @@ router.get('/team', authenticate, async (req, res) => {
         include: { investments: true, deposits: true }
       });
     }
-    
+
     // Count Valid members (those with at least one investment)
     const l1Valid = level1Users.filter(u => u.investments.length > 0).length;
     const l2Valid = level2Users.filter(u => u.investments.length > 0).length;
@@ -791,7 +791,7 @@ router.get('/team', authenticate, async (req, res) => {
 
     const allTeamMembers = [...level1Users, ...level2Users, ...level3Users, ...level4Users];
     const newMembersToday = allTeamMembers.filter(u => new Date(u.created_at) >= today).length;
-    
+
     const newEarningsToday = commissions
       .filter(c => new Date(c.created_at) >= today)
       .reduce((acc, c) => acc + parseFloat(c.amount), 0);
@@ -847,7 +847,7 @@ router.get('/team', authenticate, async (req, res) => {
   }
 });
 
-    // Get User Team List By Level
+// Get User Team List By Level
 router.get('/team/list', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -865,7 +865,7 @@ router.get('/team/list', authenticate, async (req, res) => {
       targetUsers = level1Users;
     } else {
       const l1Ids = level1Users.map(u => u.id);
-      
+
       if (level === 2 && l1Ids.length > 0) {
         targetUsers = await prisma.users.findMany({
           where: { referred_by: { in: l1Ids } },
@@ -932,7 +932,7 @@ router.get('/team/list', authenticate, async (req, res) => {
 router.put('/me/profile', authenticate, async (req, res) => {
   try {
     const { full_name, username } = req.body;
-    
+
     if (username) {
       const existing = await prisma.users.findFirst({ where: { username, id: { not: req.user.id } } });
       if (existing) return res.status(400).json({ success: false, error: 'Username is already taken' });
@@ -942,7 +942,7 @@ router.put('/me/profile', authenticate, async (req, res) => {
       where: { id: req.user.id },
       data: { full_name, username }
     });
-    
+
     await logActivity(req.user.id, 'profile updated', req, { updatedFields: { full_name, username } });
 
     res.json({ success: true, user: updatedUser });
@@ -956,17 +956,17 @@ router.put('/me/profile', authenticate, async (req, res) => {
 router.put('/me/password', authenticate, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    
+
     const user = await prisma.users.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    
+
     const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
     if (!isMatch) return res.status(400).json({ success: false, message: 'Incorrect current password' });
 
     if (!newPassword || newPassword.length < 8) {
       return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long' });
     }
-    
+
     if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(newPassword)) {
       return res.status(400).json({ success: false, message: 'Password must contain both letters and numbers' });
     }
@@ -975,21 +975,21 @@ router.put('/me/password', authenticate, async (req, res) => {
     if (isSameAsOld) {
       return res.status(400).json({ success: false, message: 'New password cannot be the same as your current password' });
     }
-    
+
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(newPassword, salt);
-    
+
     await prisma.users.update({
       where: { id: req.user.id },
       data: { password_hash: hash }
     });
-    
+
     try {
       await sendPasswordChangeConfirmationEmail(req.user.email, req.user.full_name || req.user.username || 'User');
     } catch (err) {
       console.error('Failed to send password change confirmation email:', err);
     }
-    
+
     await logActivity(req.user.id, 'profile updated', req, { description: 'Updated password' });
 
     res.json({ success: true, message: 'Password updated successfully' });
@@ -1003,16 +1003,16 @@ router.put('/me/password', authenticate, async (req, res) => {
 router.put('/me/payment', authenticate, async (req, res) => {
   try {
     const { newPassword } = req.body;
-    
+
     if (!newPassword || newPassword.length < 4) {
       return res.status(400).json({ success: false, message: 'Password must be at least 4 characters' });
     }
 
     const salt = await bcrypt.genSalt(10);
     const pinHash = await bcrypt.hash(newPassword, salt);
-    
+
     await prisma.$executeRaw`UPDATE "users" SET "withdrawal_pin" = ${pinHash} WHERE "id" = ${req.user.id}::uuid`;
-    
+
     res.json({ success: true, message: 'Withdrawal password set successfully' });
   } catch (error) {
     console.error('Set withdrawal pin error:', error);
@@ -1036,15 +1036,15 @@ router.delete('/me', authenticate, async (req, res) => {
       await tx.user_checkins.deleteMany({ where: { user_id: userId } });
       await tx.task_claims.deleteMany({ where: { user_id: userId } });
       await tx.gift_code_claims.deleteMany({ where: { user_id: userId } });
-      
+
       // Delete referral commissions where user is either the earner or the giver
-      await tx.referral_commissions.deleteMany({ 
-        where: { 
+      await tx.referral_commissions.deleteMany({
+        where: {
           OR: [
             { user_id: userId },
             { from_user_id: userId }
           ]
-        } 
+        }
       });
 
       await tx.activity_logs.deleteMany({ where: { user_id: userId } });
@@ -1074,7 +1074,7 @@ router.post('/me/send-verification', authenticate, async (req, res) => {
   try {
     const user = await prisma.users.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    
+
     if (user.email_verified) {
       return res.status(400).json({ success: false, message: 'Email is already verified' });
     }
@@ -1098,7 +1098,7 @@ router.post('/me/send-verification', authenticate, async (req, res) => {
     });
 
     if (!emailSent.success) {
-       return res.status(500).json({ success: false, message: 'Failed to send verification email. Try again later.' });
+      return res.status(500).json({ success: false, message: 'Failed to send verification email. Try again later.' });
     }
 
     res.json({ success: true, message: 'Verification code sent to your email' });
@@ -1172,7 +1172,7 @@ router.get('/spin', authenticate, async (req, res) => {
       tryAgainPrize = await prisma.spin_prizes.findFirst({
         where: { name: { contains: 'Try Again' } }
       });
-      
+
       if (!tryAgainPrize) {
         tryAgainPrize = await prisma.spin_prizes.create({
           data: {
@@ -1195,7 +1195,7 @@ router.get('/spin', authenticate, async (req, res) => {
     }
 
     const activePrizes = await prisma.spin_prizes.findMany({
-      where: { 
+      where: {
         status: true,
         position: { lte: 8 }
       },
@@ -1314,7 +1314,7 @@ router.post('/spin', authenticate, async (req, res) => {
       tryAgainPrize = await prisma.spin_prizes.findFirst({
         where: { name: { contains: 'Try Again' } }
       });
-      
+
       if (!tryAgainPrize) {
         tryAgainPrize = await prisma.spin_prizes.create({
           data: {
@@ -1337,7 +1337,7 @@ router.post('/spin', authenticate, async (req, res) => {
     }
 
     const activePrizes = await prisma.spin_prizes.findMany({
-      where: { 
+      where: {
         status: true,
         position: { lte: 8 }
       },
@@ -1392,7 +1392,7 @@ router.post('/spin', authenticate, async (req, res) => {
       if (spinType === 'free') {
         await tx.user_spins.update({
           where: { user_id: userId },
-          data: { 
+          data: {
             free_spins_remaining: { decrement: 1 },
             total_spins_used: { increment: 1 },
             total_rewards_earned: { increment: rewardAmount }
@@ -1405,25 +1405,25 @@ router.post('/spin', authenticate, async (req, res) => {
         });
         await tx.user_spins.update({
           where: { user_id: userId },
-          data: { 
+          data: {
             total_spins_used: { increment: 1 },
             total_rewards_earned: { increment: rewardAmount }
           }
         });
-        
+
         const balanceAfterCost = currentBalance - cost;
         // Log transaction for the cost
         if (cost > 0) {
-            await tx.transactions.create({
-                data: {
-                  user_id: userId,
-                  type: 'spin_cost',
-                  amount: cost,
-                  balance_before: currentBalance,
-                  balance_after: balanceAfterCost,
-                  description: 'Spin Wheel Cost'
-                }
-            });
+          await tx.transactions.create({
+            data: {
+              user_id: userId,
+              type: 'spin_cost',
+              amount: cost,
+              balance_before: currentBalance,
+              balance_after: balanceAfterCost,
+              description: 'Spin Wheel Cost'
+            }
+          });
         }
         currentBalance = balanceAfterCost;
       }
@@ -1513,7 +1513,7 @@ router.post('/deposit', authenticate, async (req, res) => {
       if (oxapayNetwork === 'bitcoin') oxapayNetwork = 'btc';
       if (oxapayNetwork === 'litecoin') oxapayNetwork = 'ltc';
 
-      const BACKEND_URL = process.env.BACKEND_URL || "https://api.polychainapp.com";
+      const BACKEND_URL = process.env.BACKEND_URL || "https://api.mykryptexapp.com";
 
       try {
         const invoiceRes = await fetch("https://api.oxapay.com/merchants/request/whitelabel", {
@@ -1526,7 +1526,7 @@ router.post('/deposit', authenticate, async (req, res) => {
             network: oxapayNetwork,
             feePaidByPayer: 0,
             callbackUrl: `${BACKEND_URL}/users/oxapay-webhook`,
-            description: `${settings?.site_name || "Polychainapp"} Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
+            description: `${settings?.site_name || "mykryptexapp.com"} Deposit - ${cryptoOption.symbol.toUpperCase()} ${cryptoOption.network}`,
           }),
         });
 
@@ -1575,7 +1575,7 @@ router.post('/oxapay-webhook', async (req, res) => {
   console.log("HEADERS:", req.headers);
   console.log("CONTENT TYPE:", req.headers["content-type"]);
   console.log("BODY:", req.body);
-  
+
   const payload = req.body;
   const signature = req.headers["x-oxapay-signature"];
   const OXAPAY_MERCHANT_KEY = process.env.OXAPAY_MERCHANT_KEY;
@@ -1594,7 +1594,7 @@ router.post('/oxapay-webhook', async (req, res) => {
   }
 
   const rawStatus = payload?.status;
-  
+
   if (rawStatus === 3 || rawStatus === "Expired") {
     console.warn(`OXAPAY_WEBHOOK: Payment expired for TrackId: ${payload.trackId}`);
     return res.status(200).json({ ok: true });
@@ -1817,7 +1817,7 @@ router.post('/withdraw', authenticate, async (req, res) => {
       // Deduct balances
       await tx.users.update({
         where: { id: userId },
-        data: { 
+        data: {
           withdrawable_balance: { decrement: numAmount }
         }
       });
@@ -1863,18 +1863,18 @@ router.post('/withdraw', authenticate, async (req, res) => {
       // Admin notification
       const adminEmail = process.env.ZOHO_FROM_EMAIL;
       if (adminEmail) {
-         await sendWithdrawalNotificationEmail({
-           email: adminEmail,
-           name: 'Admin',
-           crypto: method === 'crypto' ? network : method,
-           amount: Number(amount),
-           walletAddress: wallet_address,
-           status: 'pending',
-           date: new Date(),
-           isAdmin: true,
-           userName: req.user.full_name || req.user.username || 'User',
-           userEmail: req.user.email
-         });
+        await sendWithdrawalNotificationEmail({
+          email: adminEmail,
+          name: 'Admin',
+          crypto: method === 'crypto' ? network : method,
+          amount: Number(amount),
+          walletAddress: wallet_address,
+          status: 'pending',
+          date: new Date(),
+          isAdmin: true,
+          userName: req.user.full_name || req.user.username || 'User',
+          userEmail: req.user.email
+        });
       }
     } catch (err) {
       console.error('Failed to send withdrawal email:', err);

@@ -20,7 +20,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/api', apiRoutes);
 
 app.get('/', (req, res) => {
-  res.json({ message: 'PolychainappMining Backend is running (JavaScript)!' });
+  res.json({ message: 'mykryptexapp.com Backend is running (JavaScript)!' });
 });
 
 app.listen(port, () => {

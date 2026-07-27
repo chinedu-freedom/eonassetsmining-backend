@@ -15,8 +15,8 @@ async function testOxaPay() {
         payCurrency: "USDT",
         network: "trc20",
         feePaidByPayer: 0,
-        callbackUrl: `https://api.polychainapp.com/api/users/oxapay-webhook`,
-        description: `Polychainapp Test Deposit`,
+        callbackUrl: `https://api.mykryptexapp.com/api/users/oxapay-webhook`,
+        description: `mykryptexapp.com Test Deposit`,
       }),
     });
     const json = await invoiceRes.json();
