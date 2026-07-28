@@ -46,6 +46,12 @@ router.delete('/:id', async (req, res) => {
     if (error.code === 'P2025' || error.message?.includes('Record to delete does not exist') || error.message?.includes('not found')) {
       return res.json({ success: true, message: 'Plan deleted successfully' });
     }
+    if (error.code === 'P2003') {
+      return res.status(400).json({
+        success: false,
+        message: 'This package cannot be deleted because users have already invested in it. Please deactivate the plan instead to hide it.'
+      });
+    }
     res.status(500).json({ success: false, error: 'Failed to delete plan', details: error.message });
   }
 });
