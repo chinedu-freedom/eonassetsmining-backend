@@ -23,6 +23,13 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email already exists' });
     }
 
+    if (username) {
+      const existingUsername = await prisma.users.findFirst({ where: { username } });
+      if (existingUsername) {
+        return res.status(400).json({ error: 'Username is already taken' });
+      }
+    }
+
     if (!country_id) {
       const defaultCountry = await prisma.countries.findFirst();
       if (defaultCountry) country_id = defaultCountry.id;
