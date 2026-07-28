@@ -112,6 +112,9 @@ router.delete('/:id', async (req, res) => {
     
     res.json({ success: true, message: 'Partner deleted successfully' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ success: true, message: 'Partner deleted successfully' });
+    }
     res.status(500).json({ success: false, error: 'Failed to delete partner', details: error.message });
   }
 });

@@ -133,11 +133,21 @@ router.put('/:id', async (req, res) => {
 // Delete country
 router.delete('/:id', async (req, res) => {
   try {
+    const id = req.params.id;
+    // Check if any users reference this country
+    const usersCount = await prisma.users.count({ where: { country_id: id } });
+    if (usersCount > 0) {
+      return res.status(400).json({ error: 'Cannot delete country because it has registered users' });
+    }
+    
     await prisma.countries.delete({
-      where: { id: req.params.id }
+      where: { id }
     });
     res.json({ message: 'Country deleted successfully' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ message: 'Country deleted successfully' });
+    }
     console.error("Delete country error:", error);
     res.status(500).json({ error: 'Failed to delete country' });
   }

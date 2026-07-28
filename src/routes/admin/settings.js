@@ -50,10 +50,34 @@ const createCrudRoutes = (modelName) => {
 
   r.delete('/:id', async (req, res) => {
     try {
-      await prisma[modelName].delete({ where: { id: req.params.id } });
+      const id = req.params.id;
+      // Check if it exists
+      const exists = await prisma[modelName].findUnique({ where: { id } });
+      if (!exists) {
+        return res.json({ message: 'Deleted successfully' });
+      }
+
+      // Check if trying to delete country or language with active users
+      if (modelName === 'countries') {
+        const usersCount = await prisma.users.count({ where: { country_id: id } });
+        if (usersCount > 0) {
+          return res.status(400).json({ error: 'Cannot delete country because it has registered users' });
+        }
+      }
+      if (modelName === 'languages') {
+        const usersCount = await prisma.users.count({ where: { language_id: id } });
+        if (usersCount > 0) {
+          return res.status(400).json({ error: 'Cannot delete language because it has registered users' });
+        }
+      }
+
+      await prisma[modelName].delete({ where: { id } });
       res.json({ message: 'Deleted successfully' });
     } catch (e) {
-      res.status(500).json({ error: `Failed to delete ${modelName}` });
+      if (e.code === 'P2025') {
+        return res.json({ message: 'Deleted successfully' });
+      }
+      res.status(500).json({ error: `Failed to delete ${modelName}`, details: e.message });
     }
   });
 

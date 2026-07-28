@@ -113,16 +113,29 @@ router.patch('/:id/default', async (req, res) => {
 // Delete language
 router.delete('/:id', async (req, res) => {
   try {
-    const language = await prisma.languages.findUnique({ where: { id: req.params.id } });
-    if (language?.is_default) {
+    const id = req.params.id;
+    const language = await prisma.languages.findUnique({ where: { id } });
+    if (!language) {
+      return res.json({ message: 'Language deleted successfully' });
+    }
+    if (language.is_default) {
       return res.status(400).json({ error: 'Cannot delete the default language. Set another language as default first.' });
     }
 
+    // Check if any users reference this language
+    const usersCount = await prisma.users.count({ where: { language_id: id } });
+    if (usersCount > 0) {
+      return res.status(400).json({ error: 'Cannot delete language because it has registered users' });
+    }
+
     await prisma.languages.delete({
-      where: { id: req.params.id }
+      where: { id }
     });
     res.json({ message: 'Language deleted successfully' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ message: 'Language deleted successfully' });
+    }
     console.error("Delete language error:", error);
     res.status(500).json({ error: 'Failed to delete language' });
   }

@@ -35,9 +35,15 @@ router.put('/gift-codes/:id', async (req, res) => {
 
 router.delete('/gift-codes/:id', async (req, res) => {
   try {
-    await prisma.gift_codes.delete({ where: { id: req.params.id } });
+    const id = req.params.id;
+    // Cascade delete claims
+    await prisma.gift_code_claims.deleteMany({ where: { gift_code_id: id } });
+    await prisma.gift_codes.delete({ where: { id } });
     res.json({ message: 'Gift code deleted' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ message: 'Gift code deleted' });
+    }
     res.status(500).json({ error: 'Failed to delete gift code' });
   }
 });
@@ -88,9 +94,15 @@ router.put('/tasks/:id', async (req, res) => {
 
 router.delete('/tasks/:id', async (req, res) => {
   try {
-    await prisma.tasks.delete({ where: { id: req.params.id } });
+    const id = req.params.id;
+    // Cascade delete claims
+    await prisma.task_claims.deleteMany({ where: { task_id: id } });
+    await prisma.tasks.delete({ where: { id } });
     res.json({ message: 'Task deleted' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ message: 'Task deleted' });
+    }
     res.status(500).json({ error: 'Failed to delete task' });
   }
 });
@@ -169,6 +181,9 @@ router.delete('/check-ins/:id', async (req, res) => {
     await prisma.daily_checkins.delete({ where: { id: req.params.id } });
     res.json({ message: 'Check-in day deleted' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ message: 'Check-in day deleted' });
+    }
     res.status(500).json({ error: 'Failed to delete check-in day' });
   }
 });
@@ -228,15 +243,21 @@ router.put('/spin-prizes/:id', async (req, res) => {
 
 router.delete('/spin-prizes/:id', async (req, res) => {
   try {
+    const id = req.params.id;
     // Ensure we do not delete the constant 9th prize
-    const existing = await prisma.spin_prizes.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.spin_prizes.findUnique({ where: { id } });
     if (existing && existing.position === 9) {
       return res.status(400).json({ error: 'Cannot delete system constant prize' });
     }
 
-    await prisma.spin_prizes.delete({ where: { id: req.params.id } });
+    // Cascade delete logs
+    await prisma.spin_logs.deleteMany({ where: { prize_id: id } });
+    await prisma.spin_prizes.delete({ where: { id } });
     res.json({ message: 'Spin prize deleted' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ message: 'Spin prize deleted' });
+    }
     res.status(500).json({ error: 'Failed to delete spin prize' });
   }
 });

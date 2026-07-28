@@ -1064,6 +1064,9 @@ router.delete('/me', authenticate, async (req, res) => {
 
     res.json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ success: true, message: 'Account deleted successfully' });
+    }
     console.error('Account deletion error:', error);
     res.status(500).json({ success: false, error: 'Failed to delete account' });
   }

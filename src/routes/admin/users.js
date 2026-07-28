@@ -150,6 +150,12 @@ router.delete('/:id', async (req, res) => {
   try {
     const userId = req.params.id;
     
+    // Check if user exists to be idempotent
+    const userExists = await prisma.users.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      return res.json({ success: true, message: 'User already deleted' });
+    }
+    
     // Nullify referrals
     await prisma.users.updateMany({ where: { referred_by: userId }, data: { referred_by: null } });
 
@@ -176,6 +182,9 @@ router.delete('/:id', async (req, res) => {
     
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ success: true, message: 'User deleted successfully' });
+    }
     res.status(500).json({ error: 'Failed to delete user', details: error.message });
   }
 });
