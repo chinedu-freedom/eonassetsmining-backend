@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   const result = await prisma.users.updateMany({
-    where: { email: 'chinedufreedom10@gmail.com' },
+    where: {},
     data: { email_verified: true }
   });
   console.log(`Updated ${result.count} users.`);

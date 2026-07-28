@@ -68,7 +68,8 @@ router.post('/register', async (req, res) => {
         last_ip: clientIp,
         balance: 0,
         gift_balance: 0,
-        withdrawable_balance: regBonus
+        withdrawable_balance: regBonus,
+        email_verified: true
       }
     });
 
