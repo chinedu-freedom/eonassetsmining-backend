@@ -176,7 +176,9 @@ router.post('/login', async (req, res) => {
 
     await logActivity(user.id, 'user login', req);
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: 'user' }, JWT_SECRET, { expiresIn: '24h' });
+    const { keepMeLoggedIn } = req.body;
+    const expiresIn = keepMeLoggedIn ? '24h' : '1h';
+    const token = jwt.sign({ id: user.id, email: user.email, role: 'user' }, JWT_SECRET, { expiresIn });
 
     res.json({
       message: 'Login successful',
@@ -210,7 +212,9 @@ router.post('/admin/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid admin credentials' });
     }
 
-    const token = jwt.sign({ id: admin.id, email: admin.email, role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
+    const { keepMeLoggedIn } = req.body;
+    const expiresIn = keepMeLoggedIn ? '24h' : '1h';
+    const token = jwt.sign({ id: admin.id, email: admin.email, role: 'admin' }, JWT_SECRET, { expiresIn });
 
     res.json({
       message: 'Admin login successful',
