@@ -9,16 +9,16 @@ async function main() {
     await prisma.settings.update({
       where: { id: settings.id },
       data: {
-        site_name: "Mykryptexapp",
-        site_title: "Mykryptexapp"
+        site_name: "Kryptex Mining",
+        site_title: "Kryptex Mining"
       }
     });
     console.log("Database settings table updated successfully!");
   } else {
     await prisma.settings.create({
       data: {
-        site_name: "Mykryptexapp",
-        site_title: "Mykryptexapp"
+        site_name: "Kryptex Mining",
+        site_title: "Kryptex Mining"
       }
     });
     console.log("Database settings table created successfully!");

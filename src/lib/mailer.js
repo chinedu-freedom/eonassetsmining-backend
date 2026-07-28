@@ -7,9 +7,9 @@ const prisma = new PrismaClient();
 async function getSiteName() {
   try {
     const settings = await prisma.settings.findFirst();
-    return settings?.site_name || "mykryptexapp.com";
+    return settings?.site_name || "Kryptex Mining";
   } catch (error) {
-    return "mykryptexapp.com";
+    return "Kryptex Mining";
   }
 }
 

@@ -1,4 +1,4 @@
-export function emailTemplate(content, siteName = "mykryptexapp.com") {
+export function emailTemplate(content, siteName = "Kryptex Mining") {
   return `
     <!DOCTYPE html>
     <html lang="en">
