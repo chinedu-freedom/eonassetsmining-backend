@@ -123,7 +123,7 @@ router.delete('/:id', async (req, res) => {
     
     res.json({ success: true, message: 'News deleted successfully' });
   } catch (error) {
-    if (error.code === 'P2025') {
+    if (error.code === 'P2025' || error.message?.includes('Record to delete does not exist') || error.message?.includes('not found')) {
       return res.json({ success: true, message: 'News deleted successfully' });
     }
     res.status(500).json({ success: false, error: 'Failed to delete news', details: error.message });

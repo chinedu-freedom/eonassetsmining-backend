@@ -145,7 +145,7 @@ router.delete('/:id', async (req, res) => {
     });
     res.json({ message: 'Country deleted successfully' });
   } catch (error) {
-    if (error.code === 'P2025') {
+    if (error.code === 'P2025' || error.message?.includes('Record to delete does not exist') || error.message?.includes('not found')) {
       return res.json({ message: 'Country deleted successfully' });
     }
     console.error("Delete country error:", error);

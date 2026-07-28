@@ -43,7 +43,10 @@ router.delete('/:id', async (req, res) => {
     await prisma.plans.delete({ where: { id: req.params.id } });
     res.json({ success: true, message: 'Plan deleted successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to delete plan' });
+    if (error.code === 'P2025' || error.message?.includes('Record to delete does not exist') || error.message?.includes('not found')) {
+      return res.json({ success: true, message: 'Plan deleted successfully' });
+    }
+    res.status(500).json({ success: false, error: 'Failed to delete plan', details: error.message });
   }
 });
 

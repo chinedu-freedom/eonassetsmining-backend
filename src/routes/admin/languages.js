@@ -133,7 +133,7 @@ router.delete('/:id', async (req, res) => {
     });
     res.json({ message: 'Language deleted successfully' });
   } catch (error) {
-    if (error.code === 'P2025') {
+    if (error.code === 'P2025' || error.message?.includes('Record to delete does not exist') || error.message?.includes('not found')) {
       return res.json({ message: 'Language deleted successfully' });
     }
     console.error("Delete language error:", error);

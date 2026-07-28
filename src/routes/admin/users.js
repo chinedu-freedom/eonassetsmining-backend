@@ -182,7 +182,7 @@ router.delete('/:id', async (req, res) => {
     
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
-    if (error.code === 'P2025') {
+    if (error.code === 'P2025' || error.message?.includes('Record to delete does not exist') || error.message?.includes('not found')) {
       return res.json({ success: true, message: 'User deleted successfully' });
     }
     res.status(500).json({ error: 'Failed to delete user', details: error.message });
