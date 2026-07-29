@@ -169,7 +169,7 @@ router.post('/invest', authenticate, async (req, res) => {
 
     await logActivity(userId, 'package purchase', req, { planName: plan.name, amount: investAmount });
 
-    res.json({ success: true, message: 'Investment created successfully' });
+    res.json({ success: true, message: 'Mining Pool Successfully Activated 🎉' });
   } catch (error) {
     console.error('Investment error:', error);
     res.status(500).json({ success: false, error: 'Failed to process investment' });
