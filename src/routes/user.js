@@ -1519,12 +1519,15 @@ router.post('/deposit', authenticate, async (req, res) => {
       const BACKEND_URL = process.env.BACKEND_URL || "https://api.mykryptexapp.com";
 
       try {
+        const chargePercent = Number(settings?.deposit_charge || 0);
+        const totalAmount = Number(amount) * (1 + chargePercent / 100);
+
         const invoiceRes = await fetch("https://api.oxapay.com/merchants/request/whitelabel", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             merchant: OXAPAY_MERCHANT_KEY,
-            amount: Number(amount),
+            amount: totalAmount,
             payCurrency: cryptoOption.symbol.toUpperCase(),
             network: oxapayNetwork,
             feePaidByPayer: 0,
@@ -1554,7 +1557,8 @@ router.post('/deposit', authenticate, async (req, res) => {
             address: returnedAddress,
             trackId: json.trackId,
             dynamic: true,
-            deposit
+            deposit,
+            payableAmount: totalAmount
           });
         } else {
           console.error("OXAPAY_API_REJECTED:", json);
@@ -1682,15 +1686,8 @@ router.post('/oxapay-webhook', async (req, res) => {
         return res.status(200).json({ ok: true });
       }
 
-      let creditAmount = paidAmount || Number(deposit.amount);
-
-      // Fetch global settings to apply deposit charge
-      const settings = await prisma.settings.findFirst();
-      const depositChargePercent = Number(settings?.deposit_charge || 0);
-      if (depositChargePercent > 0) {
-        const fee = creditAmount * (depositChargePercent / 100);
-        creditAmount = creditAmount - fee;
-      }
+      // Under the additive model, the user pays the fee on top, so we credit the exact intended amount
+      let creditAmount = Number(deposit.amount);
 
       // Perform transaction to approve deposit and credit user
       await prisma.$transaction(async (tx) => {
