@@ -1013,10 +1013,10 @@ router.put('/me/payment', authenticate, async (req, res) => {
 
     await prisma.$executeRaw`UPDATE "users" SET "withdrawal_pin" = ${pinHash} WHERE "id" = ${req.user.id}::uuid`;
 
-    res.json({ success: true, message: 'Withdrawal password set successfully' });
+    res.json({ success: true, message: 'Withdrawal password updated successfully' });
   } catch (error) {
     console.error('Set withdrawal pin error:', error);
-    res.status(500).json({ success: false, message: 'Failed to set withdrawal password' });
+    res.status(500).json({ success: false, message: 'Failed to update withdrawal password' });
   }
 });
 
