@@ -19,7 +19,8 @@ router.get('/stats', async (req, res) => {
       investmentsStats,
       todayDepositsStats,
       todayWithdrawalsStats,
-      todayInvestmentsStats
+      todayInvestmentsStats,
+      cumulativeInvestmentsStats
     ] = await Promise.all([
       // Users
       prisma.users.count(),
@@ -64,6 +65,11 @@ router.get('/stats', async (req, res) => {
       prisma.investments.aggregate({
         where: { created_at: { gte: todayStart } },
         _sum: { amount: true }
+      }),
+
+      // Cumulative Investments
+      prisma.investments.aggregate({
+        _sum: { amount: true }
       })
     ]);
 
@@ -96,6 +102,7 @@ router.get('/stats', async (req, res) => {
         assetsValue: Number(depMap.APPROVED.sum || 0) + Number(usersBalances._sum.balance || 0), // Rough metric
         inProgressAssetsCount: investmentsStats._count || 0,
         inProgressAssetsSum: Number(investmentsStats._sum.amount || 0),
+        cumulativeInvestmentsSum: Number(cumulativeInvestmentsStats._sum.amount || 0),
         
         pendingDepositsCount: depMap.PENDING.count,
         approvedDepositsCount: depMap.APPROVED.count,
