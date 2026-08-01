@@ -61,7 +61,7 @@ router.post('/invest', authenticate, async (req, res) => {
     const currentBalance = Number(user.balance);
     const currentWithdrawable = Number(user.withdrawable_balance || 0);
     if ((currentBalance + currentWithdrawable) < investAmount) {
-      return res.status(400).json({ success: false, error: 'Insufficient balance' });
+      return res.status(400).json({ success: false, error: 'Insufficient Balance. Please fund your account and try again.' });
     }
 
     const dailyProfit = investAmount * (Number(plan.daily_income) / 100);
