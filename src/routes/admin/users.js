@@ -43,11 +43,12 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const data = { ...req.body };
-    if (data.new_password) {
-      const bcrypt = await import('bcrypt');
-      data.password_hash = await bcrypt.hash(data.new_password, 10);
+    const plainPassword = data.new_password || data.password;
+    if (plainPassword) {
+      data.password_hash = await bcrypt.hash(plainPassword, 10);
     }
     delete data.new_password;
+    delete data.password;
 
     const user = await prisma.users.update({
       where: { id: req.params.id },
