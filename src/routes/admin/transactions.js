@@ -116,8 +116,8 @@ router.put('/withdrawals/:id/status', async (req, res) => {
     let updatedWithdrawal;
 
     if (status === 'REJECTED' && withdrawal.status === 'PENDING') {
-      // Refund the user's balance
-      const newBalance = Number(withdrawal.user.balance) + Number(withdrawal.amount);
+      // Refund the user's withdrawable balance
+      const newWithdrawable = Number(withdrawal.user.withdrawable_balance || 0) + Number(withdrawal.amount);
       
       const result = await prisma.$transaction([
         prisma.withdrawals.update({
@@ -126,15 +126,15 @@ router.put('/withdrawals/:id/status', async (req, res) => {
         }),
         prisma.users.update({
           where: { id: withdrawal.user_id },
-          data: { balance: newBalance }
+          data: { withdrawable_balance: newWithdrawable }
         }),
         prisma.transactions.create({
           data: {
             user_id: withdrawal.user_id,
             type: 'ADJUSTMENT',
             amount: withdrawal.amount,
-            balance_before: withdrawal.user.balance,
-            balance_after: newBalance,
+            balance_before: withdrawal.user.withdrawable_balance || 0,
+            balance_after: newWithdrawable,
             description: 'Withdrawal rejected (Refund)'
           }
         })
