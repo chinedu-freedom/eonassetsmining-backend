@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import { logActivity } from '../../lib/logger.js';
 
 const router = Router();
@@ -66,8 +67,22 @@ router.put('/:id', async (req, res) => {
 
 // Manual Credit
 router.post('/:id/credit', async (req, res) => {
-  const { amount, reason, balance_type } = req.body; // balance_type: 'withdrawable' or 'balance'
+  const { amount, reason, balance_type, adminPassword } = req.body; // balance_type: 'withdrawable' or 'balance'
   try {
+    if (!adminPassword) {
+      return res.status(400).json({ error: 'Admin password is required' });
+    }
+
+    const admin = await prisma.admins.findUnique({ where: { id: req.user.id } });
+    if (!admin) {
+      return res.status(403).json({ error: 'Admin not found' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(adminPassword, admin.password_hash);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Incorrect admin password' });
+    }
+
     const user = await prisma.users.findUnique({ where: { id: req.params.id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -105,8 +120,22 @@ router.post('/:id/credit', async (req, res) => {
 
 // Manual Debit
 router.post('/:id/debit', async (req, res) => {
-  const { amount, reason, balance_type } = req.body; // balance_type: 'withdrawable' or 'balance'
+  const { amount, reason, balance_type, adminPassword } = req.body; // balance_type: 'withdrawable' or 'balance'
   try {
+    if (!adminPassword) {
+      return res.status(400).json({ error: 'Admin password is required' });
+    }
+
+    const admin = await prisma.admins.findUnique({ where: { id: req.user.id } });
+    if (!admin) {
+      return res.status(403).json({ error: 'Admin not found' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(adminPassword, admin.password_hash);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Incorrect admin password' });
+    }
+
     const user = await prisma.users.findUnique({ where: { id: req.params.id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
